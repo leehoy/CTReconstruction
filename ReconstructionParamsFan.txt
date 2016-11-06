@@ -1,0 +1,10 @@
+DataPath: ./FanBeam/LogData/
+SourceToAxis: 1000
+SourceToDetector: 1500
+DetectorPixelWidth: 0.593412
+DetectorWidth: 750
+DetectorHeight: 200
+NumberOfViews: 680
+AngleCoverage: 360
+precision: float32
+ReconVolume: 512*512
