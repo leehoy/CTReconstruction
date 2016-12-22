@@ -13,7 +13,7 @@ gamma=((0:N-1)-(N-1)/2)*deltaS;
 ZeroPaddedLength=2^nextpow2(2*(N-1));
 cutoff=0.3;
 FilterType='hann';
-filter=FanFilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff);
+filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff);
 fov=2*R*sin(atan((DetectorSize/2)/(R+D)));
 ReconSpacing=fov/nx;
 
@@ -40,7 +40,7 @@ for i=1:M
     U=(R+r(ii).*sin(angle-phi(ii)))./R;
     vq=interp1(gamma,Q,gamma2);
     recon(ii)=recon(ii)+(dtheta*vq./(U.^2));
-%     imshow(recon,[]);
+    imshow(recon,[]);
 end
 imshow(recon,[]);
 CompareFanRecon;
