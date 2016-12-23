@@ -4,9 +4,9 @@ from scipy.interpolate import interp2d, griddata, RegularGridInterpolator
 import glob
 import matplotlib.pyplot as plt
 import time
-#import pycuda.driver as drv
-#import pycuda.autoinit
-#from pycuda.compiler import SourceModule
+# import pycuda.driver as drv
+# import pycuda.autoinit
+# from pycuda.compiler import SourceModule
 
 # function alias starts
 sin = np.sin
@@ -19,6 +19,9 @@ ifftshift = np.fft.ifftshift
 sinc = np.sinc
 sqrt = np.sqrt
 real = np.real
+ceil = np.ceil
+log2 = np.log2
+pi = np.pi
 # function alias ends
 
 # GPU function definition starts
@@ -52,12 +55,10 @@ __global__ void gpuInterpol1d(float* Dest, float* codomain,float* domain ,float*
 
 __global__ void gpuInterpol2d(float* Dest, float* check,float* codomain,float* domainX,float* domainY,float* new_domainX ,float* new_domainY,float* params){
     int x=blockDim.x*blockIdx.x+threadIdx.x;
-    int y=blockIdx.y*blockDim.y+threadIdx.y;
-    //printf("%d %d \\n",x,y);
+    int y=blockDim.y*blockIdx.y+threadIdx.y;
     int NewDomainLengthX=params[6],NewDomainLengthY=params[7];
-    int tid=x+y*NewDomainLengthX;
+    int tid=x+y*(gridDim.x*blockDim.x); //linear index of thread
     float M,N,S;
-    
     if( tid<NewDomainLengthX*NewDomainLengthY){
         int OrgDomainLengthX=params[4],OrgDomainLengthY=params[5];
         float NewX=new_domainX[tid];
@@ -162,6 +163,7 @@ class ConeBeam:
 		self.recon = np.zeros([self.params['ReconX'], self.params['ReconY'], self.params['ReconZ']])
 
 	def Reconstruction(self, savefile):
+		''' TO DOs: zero pad filter and projection data'''
 		R = self.params['SourceToAxis']
 		D = self.params['SourceToDetector'] - R
 		nx = int(self.params['DetectorWidth'])
@@ -171,6 +173,7 @@ class ConeBeam:
 		DetectorPixelHeight = self.params['DetectorPixelHeight']
 		recon = np.zeros([self.params['ReconX'], self.params['ReconY'], self.params['ReconZ']])
 		DetectorSize = [nx * DetectorPixelWidth, ny * DetectorPixelHeight]
+		ZeroPaddedLength = int(2 ** (ceil(log2(2 * (nx - 1)))))
 		fov = 2.0 * R * sin(atan(DetectorSize[0] / 2.0 / (D + R)))
 		fovz = 2.0 * R * sin(atan(DetectorSize[1] / 2.0 / (D + R)))
 		self.params['fov'] = fov 
@@ -191,44 +194,44 @@ class ConeBeam:
 		p = np.arange(0, ny) - (ny - 1) / 2.0
 		ki = ki * DetectorPixelWidth
 		p = p * DetectorPixelHeight
-# zero padding required
-		h = ConeBeam.Filter(nx, DetectorPixelWidth * R / (D + R), 0.5, 0.3)
+                cutoff = 0.3
+                FilterType = 'hamming'
+		filter = ConeBeam.Filter(ZeroPaddedLength + 1, DetectorPixelWidth * R / (D + R), FilterType, cutoff)
 		ki = (ki * R) / (R + D)
 		p = (p * R) / (R + D)
-		filter = np.absolute(fftshift(fft(h)))
-		# filter = fftshift(fft(h))
 		[kk, pp] = np.meshgrid(ki, p)
 # 		sample_points = np.vstack((pp.flatten(), kk.flatten())).T
 		weight = R / (sqrt(R ** 2 + kk ** 2 + pp ** 2))
-        
 		for i in range(0, ns):
 			angle = ProjectionAngle[i]
-			print(i, angle)
+			if i == 0:
+                                print("1st projection")
+                        elif i == 1:
+                                print("2nd projection")
+                        elif i == 2:
+                                print("3rd projection")
+                        else:
+                                print(i, 'th projection')
 			WeightedProjection = weight * self.proj[:, :, i]
 			Q = np.zeros(WeightedProjection.shape)
 			for k in range(ny):
-				Q[k, :] = real(ifft(ifftshift(filter * fftshift(fft(WeightedProjection[k, :])))))
-			InterpolationFunction = RegularGridInterpolator((p, ki), Q,bounds_error=False,fill_value=0)
+				tmp = real(ifft(ifftshift(filter * fftshift(fft(WeightedProjection[k, :], ZeroPaddedLength)))))
+				Q[k, :] = tmp[0:nx]
+			InterpolationFunction = RegularGridInterpolator((p, ki), Q, bounds_error=False, fill_value=0)
 			t = xx * cos(angle) + yy * sin(angle)
 			s = -xx * sin(angle) + yy * cos(angle)
- 			for l in range(0, ReconZ):
-			#for l in range(255, 256):
+#  			for l in range(0, ReconZ):
+			for l in range(255, 256):
 				InterpX = (R * t) / (R - s)
 				InterpY = (R * z[l]) / (R - s)
 				InterpW = (R ** 2) / ((R - s) ** 2)
-				pts=np.vstack((InterpY.flatten(),InterpX.flatten())).T
+				pts = np.vstack((InterpY.flatten(), InterpX.flatten())).T
 				vq = InterpolationFunction(pts)
-				recon[:, :, l] += InterpW * dtheta * vq.reshape([self.params['ReconX'], self.params['ReconY']])
+				recon[l, :, :] += InterpW * dtheta * vq.reshape([self.params['ReconX'], self.params['ReconY']])
 # 				Interpolgpu(drv.Out(dest),drv.In(Q),block=())
-                
 			# Interpolation required
 		
-		'''
-		TO DO: Write file name definition
-			   Save reconstruction condition
-			   
-		'''
-		self.recon = recon
+		self.recon = recon.astype(np.float32)
 		recon.tofile(savefile, sep='', format='')
 		# f = open('condition.txt')
 		# f.close()
@@ -265,7 +268,7 @@ class ConeBeam:
 	def Forward(self):
 		pass
 	@staticmethod
-	def Filter(N, pixel_size, smooth, cutoff):
+	def Filter(N, pixel_size, FilterType, cutoff):
 		''' 
 		TO DO: Ram-Lak filter implementation
 			   Argument for name of filter
@@ -273,36 +276,33 @@ class ConeBeam:
 		try:
 			if cutoff > 0.5 or cutoff < 0:
 				raise ErrorDescription(4)
-			if smooth > 1.0 or smooth < 0:
-				raise ErrorDescription(5)
 		except ErrorDescription as e:
 			print(e)
-		EvenFlag = 0
-		if(N % 2 == 0):
-			N += 1
-			EvenFlag = 1
-		x = np.arange(1, N + 1) - (N - 1) / 2
-		fm = cutoff / pixel_size
-		x1 = x
-		q1 = x1
-		q1[np.where(x1 == 0)] = 0.01
-		x2 = x - 0.5 / cutoff
-		q2 = x2
-		q2[np.where(x2 == 0)] = 0.01
-		x3 = x + 0.5 / cutoff
-		q3 = x3
-		q3[np.where(x3 == 0)] = 0.01
-		h1 = ((2 * fm ** 2) * sinc(2 * fm * pixel_size * q1)) - ((fm ** 2) * sinc(fm * pixel_size * q1) ** 2)
-		h2 = ((2 * fm ** 2) * sinc(2 * fm * pixel_size * q2)) - ((fm ** 2) * sinc(fm * pixel_size * q2) ** 2)
-		h3 = ((2 * fm ** 2) * sinc(2 * fm * pixel_size * q3)) - ((fm ** 2) * sinc(fm * pixel_size * q3) ** 2)
-		h1[np.where(x1 == 0)] = fm ** 2
-		h2[np.where(x2 == 0)] = fm ** 2
-		h3[np.where(x3 == 0)] = fm ** 2
-		h = smooth * h1 + (1 - smooth) / 2 * (h2 + h3)
-		if(EvenFlag):
-			h = h[0:-1]
-			assert(h.shape[0] == N - 1)
-		return h
+		x = np.arange(0, N) - (N - 1) / 2
+                h = np.zeros(len(x))
+                h[np.where(x == 0)] = 1 / (8 * pixel_size ** 2)
+                odds = np.where(x % 2 == 1)
+                h[odds] = -0.5 / (pi * pixel_size * x[odds]) ** 2
+                h = h[0:-1]
+                filter = abs(fftshift(fft(h))) * 2
+                w = 2 * pi * x[0:-1] / (N - 1)
+                print(filter.shape, w.shape)
+		if FilterType == 'ram-lak':
+                        pass  # Do nothing
+                elif FilterType == 'shepp-logan':
+                        zero = np.where(w == 0)
+                        tmp = filter[zero]
+                        filter = filter * sin(w / (2 * cutoff)) / (w / (2 * cutoff))
+                        filter[zero] = tmp * sin(w[zero] / (2 * cutoff))
+                elif FilterType == 'cosine':
+                        filter = filter * cos(w / (2 * cutoff))
+                elif FilterType == 'hamming':
+                        filter = filter * (0.54 + 0.46 * (cos(w / cutoff)))
+                elif FilterType == 'hann':
+                        filter = filter * (0.5 + 0.5 * cos(w / cutoff))
+                
+                filter[np.where(abs(w) > pi * cutoff)] = 0
+		return filter
 	
 def main():
 	start_time = time.time()
@@ -311,7 +311,8 @@ def main():
 	R.LoadData()
 	R.Reconstruction('./Recon.dat')
 	print('%s seconds taken\n' % (time.time() - start_time))
-	plt.imshow(R.recon[:, :, 255], cmap='gray', vmin=R.recon.min(), vmax=R.recon.max())
+	print(R.recon.shape)
+	plt.imshow(R.recon[255, :, :], cmap='gray', vmin=R.recon.min(), vmax=R.recon.max())
 	plt.show()
 
 if __name__ == '__main__':
