@@ -130,7 +130,12 @@ __global__ void CalculateInterpolGrid(float* InterpX,float* InterpY,float* Inter
 
 """)
 # GPU function definition ends
-
+'''TO DOs: Helical reconstruction
+           Add interpolation method
+           Half-fan weighting
+           Read filter type and cutoff from file
+           Merge GPU version and CPU version
+'''
 class ErrorDescription:
         def __init__(self, value):
                 if(value == 1):
@@ -292,27 +297,15 @@ class ConeBeam:
                         s = -xx * sin(angle) + yy * cos(angle)
                         tt = t.flatten().astype(np.float32)
                         ss = s.flatten().astype(np.float32)
-#                         tt = np.tile(t, (ReconZ, 1, 1))
-#                         ss = np.tile(s, (ReconZ, 1, 1))
-#                         tt = np.tile(t, (ReconZ, 1, 1)).flatten().astype(np.float32)
-#                         ss = np.tile(s, (ReconZ, 1, 1)).flatten().astype(np.float32)
                         GridCalculation_gpu(InterpXgpu, InterpYgpu, InterpWgpu, drv.In(tt),
                                             drv.In(ss), zz_dev, GridParamgpu,
                                             block=(blockX, blockY, blockZ), grid=(gridX, gridY))
-#                         InterpX = (R * tt) / (R - ss)
-#                         InterpY = (R * zz) / (R - ss)
-#                         InterpW = (R ** 2) / ((R - ss) ** 2)
-#                         InterpW2 = InterpW.flatten()
-#                         InterpXgpu = InterpX.flatten().astype(np.float32)
-#                         InterpYgpu = InterpY.flatten().astype(np.float32)
-#                         InterpWgpu = InterpW.flatten().astype(np.float32)
                         Q = Q.flatten().astype(np.float32)
                         interp2d_gpu(dest, drv.In(Q), ki_gpu, p_gpu,
                                      InterpXgpu, InterpYgpu, InterpWgpu, InterpParamgpu ,
                                      block=(blockX, blockY, blockZ), grid=(gridX, gridY))
                         '''
-                        TO DO: Write file name definition
-                        Save reconstruction condition
+                        TO DO: Save reconstruction condition
                         '''
                 del InterpXgpu, InterpYgpu, InterpWgpu, zz_dev, InterpParamgpu, GridParamgpu
                 recon = dest.get().reshape([ReconX, ReconY, ReconZ])
