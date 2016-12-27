@@ -13,10 +13,9 @@ gamma=((0:N-1)-(N-1)/2)*deltaS;
 ZeroPaddedLength=2^nextpow2(2*(N-1));
 cutoff=0.3;
 FilterType='hann';
-filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff);
+filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff)*0.5;
 fov=2*R*sin(atan((DetectorSize/2)/(R+D)));
 ReconSpacing=fov/nx;
-
 x=(-(nx-1)/2:(nx-1)/2)*ReconSpacing;
 y=(-(ny-1)/2:(ny-1)/2)*ReconSpacing;
 [X,Y]=meshgrid(x,y);
