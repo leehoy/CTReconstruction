@@ -11,4 +11,4 @@ for i=1:size(list,1)
     sino(:,i)=img(:,100);
 end
 % imshow(sino,[]);
-F1=sino;
+F1=sino; 
