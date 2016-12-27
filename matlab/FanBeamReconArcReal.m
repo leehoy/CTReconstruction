@@ -48,4 +48,4 @@ figure;imshow(recon-P,[]);
 figure;
 plot(recon(256,:));
 hold on;
-plot(P(256,:));
+plot(P(256,:)); 
