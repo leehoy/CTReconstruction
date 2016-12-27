@@ -11,3 +11,4 @@ h3=FanFilter(x+0.5/cutoff,tau);
 h=smooth*h1+(1-smooth)/2*(h2+h3);
 end
 
+ 
