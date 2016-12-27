@@ -22,4 +22,4 @@ for i=1:NumberOfViews
     Projection(:,:,i)=fread(f,[DetectorWidth,DetectorHeight],precision);
     fclose(f);
 end
-ConeBeamReconstruction;
+ConeBeamReconstruction; 
