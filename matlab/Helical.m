@@ -16,8 +16,9 @@ for i=1:length(list)
     projection(:,:,i) = double(dicomread(strcat(path,list(i).name))); % uncorrected projection
     projection(:,:,i) = projection(:,:,i)* double(header.RescaleSlope) + double(header.RescaleIntercept);% projection representing line integral of linear attenuation coefficients, double-precision
 end
-if strcmp(header.DetectorShape=='CYLINDRICAL')
-else
+if strcmp(header.DetectorShape,'CYLINDRICAL')
+elseif strcmp(header.DetectorShape,'FLAT')
+elseif strcmp(header.DetectorShape,'SPHERICAL')
 end
 
 %% Define reconstruction parameters
