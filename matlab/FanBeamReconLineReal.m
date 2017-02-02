@@ -1,0 +1,46 @@
+close all;
+N=size(F1,1);
+M=size(F1,2);
+DetectorWidth=N;
+R=1000;
+D=500;
+r_spacing=445.059/DetectorWidth;
+deltaS=r_spacing*R/(R+D);
+nx=512;
+ny=nx;
+DetectorSize=r_spacing*DetectorWidth;
+gamma=((0:N-1)-(N-1)/2)*deltaS;
+ZeroPaddedLength=2^nextpow2(2*(N-1));
+cutoff=0.3;
+FilterType='hann';
+filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff)*0.5;
+fov=2*R*sin(atan((DetectorSize/2)/(R+D)));
+ReconSpacing=fov/nx;
+x=(-(nx-1)/2:(nx-1)/2)*ReconSpacing;
+y=(-(ny-1)/2:(ny-1)/2)*ReconSpacing;
+[X,Y]=meshgrid(x,y);
+xpr=X;
+ypr=Y;
+recon=zeros(nx,ny);
+[phi,r]=cart2pol(xpr,ypr);
+theta=linspace(0,360,M+1);
+theta=theta*(pi/180);
+dtheta=(pi*2)/M;
+for i=1:M
+    R1=F1(:,i);
+    w=((R)./sqrt((R)^2+gamma'.^2));
+    R2=w.*R1;
+    Q=real(ifft(ifftshift(fftshift(fft(R2,ZeroPaddedLength)).*filter)));
+    Q=Q(1:length(R2))*deltaS;
+    angle=theta(i);
+    gamma2=R*((r.*cos(angle-phi))./(R+r.*sin(angle-phi)));
+    ii=find((gamma2>min(gamma(:)))&(gamma2<max(gamma(:))));
+    gamma2=gamma2(ii);
+    U=(R+r(ii).*sin(angle-phi(ii)))./R;
+    vq=interp1(gamma,Q,gamma2);
+    recon(ii)=recon(ii)+(dtheta*vq./(U.^2));
+    imshow(recon,[]);
+end
+imshow(recon,[]);
+CompareFanRecon;
+ 
