@@ -4,8 +4,13 @@ function [ output_args ] = ForwardProjection( image,parameters, type)
 %   parameters : parameters for the forward projection (dictionary)
 %   type : method to forward project images (string)
 %   type can be 'ray-driven', 'pixel-driven', 'distance-driven', and
-%   'separable-footprint'.
-
+%   'separable-footprint'
+switch type
+    case 'ray-driven'
+    case 'pixel-driven'
+    case 'distance-driven'
+    case 'separable-footprint'
+end
 
 
 
