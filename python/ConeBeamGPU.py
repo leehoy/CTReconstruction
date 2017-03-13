@@ -227,7 +227,7 @@ class ConeBeam:
                 p = np.arange(0, ny) - (ny - 1) / 2
                 ki = ki * DetectorPixelWidth
                 p = p * DetectorPixelHeight
-                FilterType = 'hann'
+                FilterType = 'ram-lak'
                 cutoff = 0.3
                 filter = ConeBeam.Filter(ZeroPaddedLength + 1, DetectorPixelWidth * R / (D + R), FilterType, cutoff)
                 ki = (ki * R) / (R + D)
@@ -285,10 +285,10 @@ class ConeBeam:
 #                 InterpYgpu = np.zeros([ReconX * ReconY * ReconZ, 1], dtype=np.float32)
 #                 InterpWgpu = np.zeros([ReconX * ReconY * ReconZ, 1], dtype=np.float32)
                 start_time = time.time()
-                for i in range(0, ns):
+                for i in range(0,ns):
                         angle = ProjectionAngle[i]
                         print(i)
-                        WeightedProjection = weight * self.proj[:, :, i]
+                        WeightedProjection = weight * np.fliplr(self.proj[:, :, i])
                         Q = np.zeros(WeightedProjection.shape)
                         for k in range(ny):
                                 tmp = real(ifft(ifftshift(filter * fftshift(fft(WeightedProjection[k, :], ZeroPaddedLength)))))
@@ -331,6 +331,7 @@ class ConeBeam:
                         else:
                                 raise ErrorDescription(2)
                         if(not len(filelist) == ns):
+				print(len(filelist))
                                 raise ErrorDescription(3)
                         else:
                                 c = 0
@@ -340,6 +341,7 @@ class ConeBeam:
                                         c += 1
                 except ErrorDescription as e:
                         print(e)
+                        sys.exit()
             
         @staticmethod
         def Filter(N, pixel_size, FilterType, cutoff): 
@@ -389,10 +391,10 @@ class ConeBeam:
                 return (int(gridX), int(gridY))
 def main():
         start_time = time.time()
-        filename = './ReconstructionParams.txt'
+        filename = './ReconstructionParamsMV.txt'
         R = ConeBeam(filename)
         R.LoadData()
-        R.Reconstruction('./ReconGPU.dat')
+        R.Reconstruction('./ReconMVRMI.dat')
         print(R.recon.min(), R.recon.max())
         print time.time() - start_time
 #         plt.imshow(R.recon[:, :, 255], cmap='gray', vmin=R.recon.min(), vmax=R.recon.max())
