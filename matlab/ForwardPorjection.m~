@@ -60,8 +60,6 @@ for i=1:nn
     end
     if (Y1==Y2 && Z1==Z2)
     elseif(Y1==Y2 && Z1~=Z2)
-    elseif(Y1~=Y2 && Z1==Z2)
-    else
-    end
+        els
 end
 end
