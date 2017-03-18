@@ -21,12 +21,21 @@ Angle=linspace(0,AngleCoverage,NumberOfViews+1);% doesn't include last point of 
 Angle=Angle(1:end-1);
 switch type
     case 'ray-driven'
+        for i=0:NumberOfViews
+            proj(:,:,i)=ray(image,paraeters,Angle(i));
+        end
     case 'pixel-driven'
+        for i=0:NumberOfViews
+            proj(:,:,i)=pixel(image,paraeters,Angle(i));
+        end
     case 'distance-driven'
         for i=0:NumberOfViews
             proj(:,:,i)=distance(image,paraeters,Angle(i));
         end
     case 'separable-footprint'
+        for i=0:NumberOfViews
+            proj(:,:,i)=separablefootprint(image,paraeters,Angle(i));
+        end
 end
 
 
@@ -64,4 +73,10 @@ for i=1:nn
     else
     end
 end
+end
+function ray(image,parameter,ViewAngle)
+end
+function pixel(image,parameter,ViewAngle)
+end
+function separablefootprint(image,parameter,ViewAngle)
 end
