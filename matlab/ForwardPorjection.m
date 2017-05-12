@@ -20,12 +20,14 @@ Angle=linspace(0,AngleCoverage,NumberOfViews+1);% doesn't include last point of 
 Angle=Angle(1:end-1);
 switch type
     case 'ray-driven'
+        % based on siddon's ray tracing algorithm
         for i=0:NumberOfViews
             proj(:,:,i)=ray(image,paraeters,Angle(i));
         end
     case 'pixel-driven'
         for i=0:NumberOfViews
             proj(:,:,i)=pixel(image,paraeters,Angle(i));
+            
         end
     case 'distance-driven'
         for i=0:NumberOfViews
