@@ -1,32 +1,42 @@
 nx=256;
 ny=nx;
 ph=phantom(nx);
-Source_init=[1000,0];
-Detector_init=[-300,0];
-Origin=[0,0];
+Source_init=[0,500]; % Initial source position
+Detector_init=[0,-1000]; % Initial detector position
+Origin=[0,0]; % Rotating center
 SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
-DetectorPixelSize=1;
-NumberOfDetectorPixels=[370,1];
-% DetectorX=-512:DetectorPixelSize:512;
-PhantomCenter=[0,0];
+DetectorPixelSize=1; % Detector pixel spacing
+NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
+PhantomCenter=[0,0]; % Center of phantom
 dx=1; %phantom pixel spacing
 dy=1;
-Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx-1)*dx;
-Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny-1)*dy;
 nTheta=360;
 StartAngle=0;
 EndAngle=2*pi;
+
+
+Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx-1)*dx;
+Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny-1)*dy;
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
-d=zeros(NumberOfDetectorPixels(1),nTheta);
+proj=zeros(NumberOfDetectorPixels(1),nTheta);
+
+% Rotating CCW direction starting from x-axis
+% TO Dos:
+%   Add direction configurations
+%   Expand to cone-beam projection
+%   Reduce discontinuity between angles - this is cause by indexing.
+%       From zero to 90 degrees and 270 to 360 degrees, detector has larger number of pixels in
+%       bottom/right position from the center and it changes to up/left
+%       between 90 to 270 degrees -> Solved
+
 for angle_index=1:nTheta
     SourceX=-SAD*sin(theta(angle_index)); % source coordinate
     SourceY=SAD*cos(theta(angle_index));
     DetectorX=(SDD-SAD)*sin(theta(angle_index));  % center of detector coordinate
     DetectorY=-(SDD-SAD)*cos(theta(angle_index));
     DetectorLength=(-NumberOfDetectorPixels(1)/2:NumberOfDetectorPixels(1)/2)*DetectorPixelSize;
-    DetectorLength=DetectorLength(1:end-1);
     if(abs(tan(theta(angle_index)))<=1e-6)
         DetectorIndex=[DetectorX+DetectorLength; repmat(DetectorY,1,size(DetectorLength,2))];
     elseif(tan(theta(angle_index))>=1e6)
@@ -40,6 +50,9 @@ for angle_index=1:nTheta
     if(DetectorY>0)
         DetectorIndex=DetectorIndex(:,end:-1:1);
     end
+    DetectorIndex=DetectorIndex(:,1:end-1);
+    DetectorIndex(1,:)=DetectorIndex(1,:)+DetectorPixelSize/2; %change the coordinate to direct center of the detector pixels
+    DetectorIndex(2,:)=DetectorIndex(2,:)+DetectorPixelSize/2;
     for detector_index=1:size(DetectorIndex,2)
         alpha_x=(Xplane-SourceX)/(DetectorIndex(1,detector_index)-SourceX);
         alpha_y=(Yplane-SourceY)/(DetectorIndex(2,detector_index)-SourceY);
@@ -91,9 +104,9 @@ for angle_index=1:nTheta
             index(i,2)=floor(1+yy);
         end
         for i=1:length(l)
-            d(detector_index,angle_index)=d(detector_index,angle_index)+l(i)*ph(index(i,1),index(i,2));
+            proj(detector_index,angle_index)=proj(detector_index,angle_index)+l(i)*ph(index(i,1),index(i,2));
         end
     end
 end
-imagesc(d);
+imagesc(proj);
 colormap gray;
