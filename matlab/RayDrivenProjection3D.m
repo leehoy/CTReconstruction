@@ -31,7 +31,7 @@ proj=zeros(NumberOfDetectorPixels(1),NumberOfDetectorPixels(2),nTheta);
 % Rotating CCW direction starting from x-axis
 % TO Dos:
 %   Add direction configurations
-%   Expand to cone-beam projection
+%   Expand to cone-beam projection -> Solved
 %   Reduce discontinuity between angles - this is cause by indexing.
 %       From zero to 90 degrees and 270 to 360 degrees, detector has larger number of pixels in
 %       bottom/right position from the center and it changes to up/left
@@ -174,7 +174,7 @@ for angle_index=1:nTheta
 end
 % imagesc(proj);
 % colormap gray;
-f=feopn('Proj.dat','w');
+f=fopen('Proj.dat','w');
 fwrite(f,proj,'float32');
 fclose(f);
 toc
