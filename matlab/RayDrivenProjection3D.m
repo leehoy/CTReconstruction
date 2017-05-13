@@ -8,13 +8,13 @@ Detector_init=[0,-500,0]; % Initial detector position
 Origin=[0,0,0]; % Rotating center
 SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
-DetectorPixelSizeH=1; % Detector pixel spacing
-DetectorPixelSizeV=1; % Detector pixel spacing
+DetectorPixelSizeH=0.384; % Detector pixel spacing
+DetectorPixelSizeV=0.384; % Detector pixel spacing
 NumberOfDetectorPixels=[1024 ,768]; % Number of detector rows and chnnels
 PhantomCenter=[0,0,0]; % Center of phantom
-dx=1; %phantom pixel spacing
-dy=1;
-dz=1;
+dx=0.5; %phantom pixel spacing
+dy=0.5;
+dz=0.5;
 nTheta=360;
 StartAngle=0;
 EndAngle=2*pi;
@@ -172,6 +172,9 @@ for angle_index=1:nTheta
         end
     end
 end
-imagesc(proj);
-colormap gray;
+% imagesc(proj);
+% colormap gray;
+f=feopn('Proj.dat','w');
+fwrite(f,proj,'float32');
+fclose(f);
 toc
