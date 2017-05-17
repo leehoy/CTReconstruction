@@ -18,8 +18,8 @@ StartAngle=0;
 EndAngle=2*pi;
 
 
-Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx-1)*dx;
-Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny-1)*dy;
+Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx)*dx;
+Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny)*dy;
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
 proj=zeros(NumberOfDetectorPixels(1),nTheta);
@@ -27,7 +27,6 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 % Rotating CCW direction starting from x-axis
 % TO Dos:
 %   Add direction configurations
-%   Expand to cone-beam projection
 %   Reduce discontinuity between angles - this is cause by indexing.
 %       From zero to 90 degrees and 270 to 360 degrees, detector has larger number of pixels in
 %       bottom/right position from the center and it changes to up/left

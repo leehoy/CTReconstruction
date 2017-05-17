@@ -20,9 +20,9 @@ StartAngle=0;
 EndAngle=2*pi;
 
 
-Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx-1)*dx;
-Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny-1)*dy;
-Zplane=PhantomCenter(3)-size(ph,3)/2+(0:nz-1)*dz;
+Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx)*dx;
+Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny)*dy;
+Zplane=PhantomCenter(3)-size(ph,3)/2+(0:nz)*dz;
 
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
