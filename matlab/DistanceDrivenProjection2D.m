@@ -16,8 +16,8 @@ nTheta=720;
 StartAngle=0;
 EndAngle=2*pi;
 
-Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx-1)*dx; % pixel boundaries of image
-Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny-1)*dy;
+Xplane=PhantomCenter(1)-size(ph,1)/2+(0:nx)*dx; % pixel boundaries of image
+Yplane=PhantomCenter(2)-size(ph,2)/2+(0:ny)*dy;
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
 proj=zeros(NumberOfDetectorPixels(1),nTheta);
@@ -26,10 +26,7 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 % TO Dos:
 %   Add direction configurations
 %   Expand to cone-beam projection
-%   Reduce discontinuity between angles - this is cause by indexing.
-%       From zero to 90 degrees and 270 to 360 degrees, detector has larger number of pixels in
-%       bottom/right position from the center and it changes to up/left
-%       between 90 to 270 degrees -> Solved
+
 
 for angle_index=1:nTheta
     SourceX=-SAD*sin(theta(angle_index)); % source coordinate
@@ -51,59 +48,36 @@ for angle_index=1:nTheta
         DetectorIndex=DetectorIndex(:,end:-1:1);
     end
     DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
-    for detector_index=1:size(DetectorIndex,2)
-        alpha_x=(Xplane-SourceX)/(DetectorIndex(1,detector_index)-SourceX);
-        alpha_y=(Yplane-SourceY)/(DetectorIndex(2,detector_index)-SourceY);
-        alpha_min=max([0,min(alpha_x(1),alpha_x(end)),min(alpha_y(1),alpha_y(end))]);
-        alpha_max=min([1,max(alpha_x(1),alpha_x(end)),max(alpha_y(1),alpha_y(end))]);
-        if(alpha_min>=alpha_max)
-            continue;
-        end
-        if(SourceX==DetectorIndex(1,detector_index))
-            alpha_x=[];
-        elseif(SourceX<DetectorIndex(1,detector_index))
-            i_min=ceil(nx-(Xplane(end)-alpha_min*(DetectorIndex(1,detector_index)-SourceX)-SourceX)/dx);
-            i_max=floor(1+(SourceX+alpha_max*(DetectorIndex(1,detector_index)-SourceX)-Xplane(1))/dx);
-            alpha_x=alpha_x(i_min:i_max);
-        else
-            i_min=ceil(nx-(Xplane(end)-alpha_max*(DetectorIndex(1,detector_index)-SourceX)-SourceX)/dx);
-            i_max=floor(1+(SourceX+alpha_min*(DetectorIndex(1,detector_index)-SourceX)-Xplane(1))/dx);
-            alpha_x=alpha_x(i_max:-1:i_min);
-        end
-        if(SourceY==DetectorIndex(2,detector_index))
-            alpha_y=[];
-        elseif(SourceY<DetectorIndex(2,detector_index))
-            j_min=ceil(ny-(Yplane(end)-alpha_min*(DetectorIndex(2,detector_index)-SourceY)-SourceY)/dy);
-            j_max=floor(1+(SourceY+alpha_max*(DetectorIndex(2,detector_index)-SourceY)-Yplane(1))/dy);
-            alpha_y=alpha_y(j_min:j_max);
-        else
-            j_min=ceil(ny-(Yplane(end)-alpha_max*(DetectorIndex(2,detector_index)-SourceY)-SourceY)/dy);
-            j_max=floor(1+(SourceY+alpha_min*(DetectorIndex(2,detector_index)-SourceY)-Yplane(1))/dy);
-            alpha_y=alpha_y(j_max:-1:j_min);
-        end
-        alpha=unique(sort([alpha_min,alpha_x,alpha_y,alpha_max]));
-        l=zeros(length(alpha)-1,1);
-        d12=sqrt((SourceX-DetectorIndex(1,detector_index))^2+(SourceY-DetectorIndex(2,detector_index))^2);
-        for i=1:length(l)
-            l(i)=d12*(alpha(i+1)-alpha(i));
-        end
-        index=zeros(length(l),2);
-        for i=1:size(index,1)
-            alpha_mid=(alpha(i+1)+alpha(i))/2;
-            xx=(SourceX+alpha_mid*(DetectorIndex(1,detector_index)-SourceX)-Xplane(1))/dx;
-            yy=(SourceY+alpha_mid*(DetectorIndex(2,detector_index)-SourceY)-Yplane(1))/dy;
-            if(abs(xx)<=1e-7)
-                xx=0;
+    if (abs(SourceX-DetectorX)<=abs(SourceY-DetectorY)) % check direction of ray
+        for detector_index=1:size(DetectorIndex,2)
+            DetectorBoundary1=DetectorIndex(detector_index)-DetectorPixelSize/2;
+            DetectorBoundary2=DetectorIndex(detector_index)-DetectorPixelSize/2;
+            k1=(SourceX-DetectorBoundary1)/(SourceY-DetectorY);
+            intercept1=k1*SourceX-SourceY;
+            k2=(SourceX-DetectorBoundary2)/(SourceY-DetectorY); % slope of line between source and detector boundray
+            intercept2=k2*SourceX-SourceY;
+            detector_value=0;
+            for image_row_index=1:ny
+                image_col_index1=floor(k1*(Yplane(image_row_index)+dy/2)+intercept1);
+                image_col_index2=floor(k2*(Yplane(image_row_index)+dy/2)+intercept2);
+                % image_col_indexes are real cooordinate, not index
+                % how to check the line intersection is out of the phantom
+                % or not?
+                if condition:
+                    continue;
+                end
+                if( image_col_index1==image_col_index2)
+                    detector_value=detector_value+ph(image_row_index,image_col_index)*detector_weight;
+                    % check order of phantom image
+                else
+                    detector_value=detector_value+ph(image_row_index,image_col_index1)*...
+                        (image_col_index2-DetectorBoundary1)/(DetectorBoundary2-DetectorBoundary1)+...
+                        ph(image_row_index,image_col_index2)*(DetectorBoundary2-image_col_index2)/...
+                        (DetectorBoundary2-DetectorBoundary1);
+                end
             end
-            if(abs(yy)<=1e-7)
-                yy=0;
-            end
-            index(i,1)=floor(1+xx);
-            index(i,2)=floor(1+yy);
         end
-        for i=1:length(l)
-            proj(detector_index,angle_index)=proj(detector_index,angle_index)+l(i)*ph(index(i,1),index(i,2));
-        end
+    else
     end
 end
 imagesc(proj);
