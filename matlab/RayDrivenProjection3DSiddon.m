@@ -24,7 +24,9 @@ tol_min=1e-6;
 Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx;
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
 Zplane=(PhantomCenter(3)-size(ph,3)/2+(0:nz))*dz;
-
+Xplane=Xplane-dx/2;
+Yplane=Yplane-dy/2;
+Zplane=Zplane-dz/2;
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
 proj=zeros(NumberOfDetectorPixels(1),NumberOfDetectorPixels(2),nTheta);

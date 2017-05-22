@@ -3,7 +3,7 @@
 % three-dimensional CT array, Robert L. Siddon, Medical Physics, 12(2)
 % (1985).
 tic;
-nx=512;
+nx=256;
 ny=nx;
 ph=phantom(nx);
 Source_init=[0,1000]; % Initial source position
@@ -12,7 +12,7 @@ Origin=[0,0]; % Rotating center
 SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
 DetectorPixelSize=0.39625; % Detector pixel spacing
-NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
+NumberOfDetectorPixels=[512 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
 dx=0.5; %phantom pixel spacing
 dy=0.5;
@@ -25,6 +25,8 @@ tol_min=1e-5;
 tol_max=1e6;
 Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx;
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
+Xplane=Xplane-dx/2;
+Yplane=Yplane-dy/2;
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
 proj=zeros(NumberOfDetectorPixels(1),nTheta);
@@ -95,7 +97,7 @@ for angle_index=1:nTheta
         l=zeros(length(alpha)-1,1);
         d12=sqrt((SourceX-DetectorIndex(1,detector_index))^2+(SourceY-DetectorIndex(2,detector_index))^2);
         for i=1:length(l)
-            l(i)=d12*(alpha(i+1)-alpha(i));
+            l(i)=round(d12*(alpha(i+1)-alpha(i)),5);
         end
         index=zeros(length(l),2);
         for i=1:size(index,1)
