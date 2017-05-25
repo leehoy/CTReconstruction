@@ -30,7 +30,7 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 %   Expand to cone-beam projection
 
 tmp=zeros(size(ny));
-for angle_index=23:nTheta
+for angle_index=1:nTheta
     SourceX=-SAD*sin(theta(angle_index)); % source coordinate
     SourceY=SAD*cos(theta(angle_index));
     DetectorX=(SDD-SAD)*sin(theta(angle_index));  % center of detector coordinate
