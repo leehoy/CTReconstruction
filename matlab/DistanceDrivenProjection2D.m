@@ -53,13 +53,15 @@ for angle_index=23:nTheta
     if (abs(SourceX-DetectorX)<=abs(SourceY-DetectorY)) % check direction of ray
         for detector_index=1:size(DetectorIndex,2)
 %         for detector_index=134:134
-            DetectorBoundary1=DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
-                DetectorPixelSize/2;
-            DetectorBoundary2=DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
-                DetectorPixelSize/2;
-            k1=(SourceX-DetectorBoundary1)/(SourceY-DetectorY);
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            k1=(SourceX-DetectorBoundary1(1))/(SourceY-DetectorBoundary1(2));
             intercept1=-k1*SourceY+SourceX;
-            k2=(SourceX-DetectorBoundary2)/(SourceY-DetectorY); % slope of line between source and detector boundray
+            k2=(SourceX-DetectorBoundary2(1))/(SourceY-DetectorBoundary2(2)); % slope of line between source and detector boundray
             intercept2=-k2*SourceY+SourceX;
             detector_value=0;
             for image_row_index=1:ny
@@ -139,13 +141,15 @@ for angle_index=23:nTheta
         % if projection is done on 
         for detector_index=1:size(DetectorIndex,2)
 %         for detector_index=134:134
-            DetectorBoundary1=DetectorIndex(2,detector_index)-cos(theta(angle_index))*...
-                DetectorPixelSize/2;
-            DetectorBoundary2=DetectorIndex(2,detector_index)+cos(theta(angle_index))*...
-                DetectorPixelSize/2;
-            k1=(SourceY-DetectorBoundary1)/(SourceX-DetectorX);
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            k1=(SourceY-DetectorBoundary1(2))/(SourceX-DetectorBoundary1(1));
             intercept1=-k1*SourceX+SourceY;
-            k2=(SourceY-DetectorBoundary2)/(SourceX-DetectorX); % slope of line between source and detector boundray
+            k2=(SourceY-DetectorBoundary2(2))/(SourceX-DetectorBoundary2(1)); % slope of line between source and detector boundray
             intercept2=-k2*SourceX+SourceY;
             detector_value=0;
             for image_col_index=1:nx
