@@ -6,22 +6,28 @@ tic;
 nx=256;
 ny=nx;
 ph=phantom(nx);
+% ph=recon(:,:,10);
 Source_init=[0,1000]; % Initial source position
 Detector_init=[0,-500]; % Initial detector position
 Origin=[0,0]; % Rotating center
 SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
-DetectorPixelSize=0.39625; % Detector pixel spacing
+DetectorPixelSize=0.390625; % Detector pixel spacing
+% DetectorPixelSize=445.059/750; % Detector pixel spacing
 NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
+% NumberOfDetectorPixels=[750 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
+% dx=(2*SAD*sin(atan((445.059/2)/SDD)))/512; %phantom pixel spacing
+% dy=dx;
 dx=0.5; %phantom pixel spacing
 dy=0.5;
 nTheta=360;
+% nTheta=680;
 StartAngle=0;
 EndAngle=2*pi;
 dir='ccw'; % direction may be counter-clockwise or clockwise
 
-tol_min=1e-5;
+tol_min=1e-6;
 tol_max=1e6;
 Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx;
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
@@ -38,9 +44,8 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 %       From zero to 90 degrees and 270 to 360 degrees, detector has larger number of pixels in
 %       bottom/right position from the center and it changes to up/left
 %       between 90 to 270 degrees -> Solved
-
+weight_map=zeros([size(ph,1),size(ph,2),nTheta]);
 for angle_index=1:nTheta
-    weight_map=zeros(size(ph));
     if(strcmp(dir,'ccw'))
     elseif(strcmp(dir,'cw'))
     end
@@ -68,7 +73,7 @@ for angle_index=1:nTheta
         alpha_y=(Yplane-SourceY)/(DetectorIndex(2,detector_index)-SourceY);
         alpha_min=max([0,min(alpha_x(1),alpha_x(end)),min(alpha_y(1),alpha_y(end))]);
         alpha_max=min([1,max(alpha_x(1),alpha_x(end)),max(alpha_y(1),alpha_y(end))]);
-        if(alpha_min>=alpha_max|| abs(alpha_min-alpha_max)<tol_min)
+        if(alpha_min>=alpha_max)
             continue;
         end
         if(SourceX==DetectorIndex(1,detector_index))
@@ -93,11 +98,11 @@ for angle_index=1:nTheta
             j_max=floor(1+(SourceY+alpha_min*(DetectorIndex(2,detector_index)-SourceY)-Yplane(1))/dy);
             alpha_y=alpha_y(j_max:-1:j_min);
         end
-        alpha=uniquetol(sort([alpha_min,alpha_x,alpha_y,alpha_max]),tol_min);
+        alpha=uniquetol(sort([alpha_min,alpha_x,alpha_y,alpha_max]),tol_min/alpha_max);
         l=zeros(length(alpha)-1,1);
         d12=sqrt((SourceX-DetectorIndex(1,detector_index))^2+(SourceY-DetectorIndex(2,detector_index))^2);
         for i=1:length(l)
-            l(i)=round(d12*(alpha(i+1)-alpha(i)),5);
+            l(i)=d12*(alpha(i+1)-alpha(i));
         end
         index=zeros(length(l),2);
         for i=1:size(index,1)
@@ -115,11 +120,11 @@ for angle_index=1:nTheta
         end
         for i=1:length(l)
             proj(detector_index,angle_index)=proj(detector_index,angle_index)+l(i)*ph(index(i,1),index(i,2));
-            weight_map(index(i,1),index(i,2))=weight_map(index(i,1),index(i,2))+l(i);
+            weight_map(index(i,1),index(i,2),angle_index)=weight_map(index(i,1),index(i,2),angle_index)+l(i);
         end
 %         plot(l);
     end
 end
-imagesc(proj);
-colormap gray;
+% imagesc(proj);
+% colormap gray;
 toc
