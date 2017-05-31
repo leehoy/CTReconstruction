@@ -12,7 +12,7 @@ NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
 dx=0.5; %phantom pixel spacing
 dy=0.5;
-nTheta=180;
+nTheta=360;
 StartAngle=0;
 EndAngle=2*pi;
 
@@ -51,9 +51,8 @@ for angle_index=1:nTheta
     if(DetectorY>0)
         DetectorIndex=DetectorIndex(:,end:-1:1);
     end
-%     DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
+    DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
     for detector_index=1:size(DetectorIndex,2)-1
-        
         if(abs(SourceX-DetectorIndex(1,detector_index))<=abs(SourceY-DetectorIndex(2,detector_index)))
 %             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
 %                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
@@ -61,8 +60,8 @@ for angle_index=1:nTheta
 %             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
 %                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
 %                 DetectorPixelSize/2];
-            DetectorBoundary1=DetectorIndex(:,detector_index);
-            DetectorBoundary2=DetectorIndex(:,detector_index+1);
+            DetectorBoundary1=DetectorIndex(:,detector_index); % this values need to be changed to poiting boundary of detector cell
+            DetectorBoundary2=DetectorIndex(:,detector_index+1);% this values need to be changed to poiting boundary of detector cell
             k1=(SourceX-DetectorBoundary1(1))/(SourceY-DetectorBoundary1(2));
             intercept1=-k1*SourceY+SourceX;
             k2=(SourceX-DetectorBoundary2(1))/(SourceY-DetectorBoundary2(2)); % slope of line between source and detector boundray
@@ -258,8 +257,9 @@ for angle_index=1:nTheta
             proj(detector_index,angle_index)=detector_value;
         end
     end
+    fprintf('%d %f\n',angle_index,max(max(weight_map(:,:,angle_index))));
 end
-%     fprintf('%d %f\n',angle_index,max(weight_map(:)));
+    
 % plot(proj);
 imagesc(proj);
 colormap gray;
