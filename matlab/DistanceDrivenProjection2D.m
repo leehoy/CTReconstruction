@@ -49,18 +49,16 @@ for angle_index=1:nTheta
     if(DetectorY>0)
         DetectorIndex=DetectorIndex(:,end:-1:1);
     end
-    DetectorIndex(1,:)=DetectorIndex(1,:)-DetectorPixelSize/2; % The index pointing boundary of detector pixels
-    if (abs(SourceX-DetectorX)<=abs(SourceY-DetectorY)) % check direction of ray
+    DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
+    for detector_index=1:size(DetectorIndex,2)
         weight_map=zeros(size(ph));
-        for detector_index=1:size(DetectorIndex,2)-1
-            DetectorBoundary1=DetectorIndex(:,detector_index);
-            DetectorBoundary2=DetectorIndex(:,detector_index+1);
-%             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-%             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
+        if(abs(SourceX-DetectorIndex(1,detector_index))<=abs(SourceY-DetectorIndex(2,detector_index)))
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
             k1=(SourceX-DetectorBoundary1(1))/(SourceY-DetectorBoundary1(2));
             intercept1=-k1*SourceY+SourceX;
             k2=(SourceX-DetectorBoundary2(1))/(SourceY-DetectorBoundary2(2)); % slope of line between source and detector boundray
@@ -151,19 +149,14 @@ for angle_index=1:nTheta
                 end
             end
             proj(detector_index,angle_index)=detector_value;
-        end
-    else
-        weight_map=zeros(size(ph));
-        % if projection is done on 
-        for detector_index=1:size(DetectorIndex,2)-1
-            DetectorBoundary1=DetectorIndex(:,detector_index);
-            DetectorBoundary2=DetectorIndex(:,detector_index+1);
-%             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-%             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
+        else
+            
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
             k1=(SourceY-DetectorBoundary1(2))/(SourceX-DetectorBoundary1(1));
             intercept1=-k1*SourceX+SourceY;
             k2=(SourceY-DetectorBoundary2(2))/(SourceX-DetectorBoundary2(1)); % slope of line between source and detector boundray
@@ -260,8 +253,8 @@ for angle_index=1:nTheta
             proj(detector_index,angle_index)=detector_value;
         end
     end
-%     fprintf('%d %f\n',angle_index,max(weight_map(:)));
 end
+%     fprintf('%d %f\n',angle_index,max(weight_map(:)));
 % plot(proj);
 imagesc(proj);
 colormap gray;
