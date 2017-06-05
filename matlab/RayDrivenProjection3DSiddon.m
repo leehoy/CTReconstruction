@@ -132,7 +132,7 @@ for angle_index=1:nTheta
                         -SourceZ)-Zplane(1))/dz);
                     alpha_z=alpha_z(k_max:-1:k_min);
                 end
-                alpha=uniquetol(sort([alpha_min,alpha_x,alpha_y,alpha_z,alpha_max]),tol_min);
+                alpha=uniquetol(sort([alpha_min,alpha_x,alpha_y,alpha_z,alpha_max]),tol_min/alpha_max);
                 l=zeros(length(alpha)-1,1);
                 d12=sqrt((SourceX-DetectorIndex(1,detector_index_h,detector_index_v))^2+...
                 (SourceY-DetectorIndex(2,detector_index_h,detector_index_v))^2+...
