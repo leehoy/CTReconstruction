@@ -77,4 +77,4 @@ toc
 % f=fopen('ConeBeamReconstructed.dat','w');
 % fwrite(f,Recon,precision);
 % fclose(f);
-CompareCBCTRecon; 
+% CompareCBCTRecon; 
