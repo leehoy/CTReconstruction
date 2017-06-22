@@ -54,14 +54,14 @@ for angle_index=1:nTheta
     DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
     for detector_index=1:size(DetectorIndex,2)-1
         if(abs(SourceX-DetectorIndex(1,detector_index))<=abs(SourceY-DetectorIndex(2,detector_index)))
-%             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-%             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-            DetectorBoundary1=DetectorIndex(:,detector_index); % this values need to be changed to poiting boundary of detector cell
-            DetectorBoundary2=DetectorIndex(:,detector_index+1);% this values need to be changed to poiting boundary of detector cell
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+%             DetectorBoundary1=DetectorIndex(:,detector_index); % this values need to be changed to poiting boundary of detector cell
+%             DetectorBoundary2=DetectorIndex(:,detector_index+1);% this values need to be changed to poiting boundary of detector cell
             k1=(SourceX-DetectorBoundary1(1))/(SourceY-DetectorBoundary1(2));
             intercept1=-k1*SourceY+SourceX;
             k2=(SourceX-DetectorBoundary2(1))/(SourceY-DetectorBoundary2(2)); % slope of line between source and detector boundray
@@ -79,37 +79,44 @@ for angle_index=1:nTheta
                 % how to check the line intersection is out of the phantom
                 % or not?
                 if( image_col_index1==image_col_index2)
+%                   ray passing a single voxel
                     detector_value=detector_value+ph(image_row_index,image_col_index1);%/(coord2-coord1);
                     weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+1;
                     tmp(image_row_index)=ph(image_row_index,image_col_index1);
                     % check order of phantom image
                 else
                     if(min(coord1,coord2)<Xplane(1))
-                        if(image_col_index1>0 && Xplane(image_col_index1)>min(coord1,coord2) && Xplane(image_col_index1)<=max(coord1,coord2))
-                            pixel=image_col_index1;
-                        else
+%                       One of the ray not passing the phantom
+%                       left boundary
+                        if(coord1<Xplane(1))
                             pixel=image_col_index2;
+                            weight=coord2-Xplane(pixel);
+                        else
+                            pixel=image_col_index1;
+                            weight=coord1-Xplane(pixel);
                         end
                         detector_value=detector_value+...
-                            ph(image_row_index,pixel)*(coord2-Xplane(pixel))/...
+                            ph(image_row_index,pixel)*weight/...
                             (coord2-coord1);
                         weight_map(image_row_index,pixel,angle_index)=weight_map(image_row_index,pixel,angle_index)+...
-                            (coord2-Xplane(pixel))/(coord2-coord1);
+                            weight/(coord2-coord1);
                     elseif(max(coord1,coord2)>Xplane(end))
-                        if(image_col_index1>length(Xplane) || image_col_index1<1)
-                            pixel=image_col_index2+1;
-                        elseif(image_col_index2>length(Xplane) || image_col_index2<1)
+%                       One of the ray not passing the phantom
+%                       right boundary
+                        if(coord2>Xplane(end))
                             pixel=image_col_index1+1;
-                        elseif(Xplane(image_col_index1)<Xplane(image_col_index2))
-                            pixel=image_col_index1+1;
+                            weight=Xplane(pixel)-coord1;
                         else
                             pixel=image_col_index2+1;
+                            weight=Xplane(pixel)-coord2;
                         end
                         detector_value=detector_value+ph(image_row_index,pixel-1)*...
-                            (Xplane(pixel)-coord1)/(coord2-coord1);
+                            weight/(coord2-coord1);
                         weight_map(image_row_index,pixel-1,angle_index)=weight_map(image_row_index,pixel-1,angle_index)+...
-                            (Xplane(pixel)-coord1)/(coord2-coord1);
+                            weight/(coord2-coord1);
                     elseif(abs(image_col_index2-image_col_index1)>1)
+%                       Both ray passing through the phantom, they are
+%                       separated more than 2 voxels
                         min_plane=min(Xplane(image_col_index1),Xplane(image_col_index2));
                         max_plane=max(Xplane(image_col_index1),Xplane(image_col_index2));
                         if(min_plane==Xplane(image_col_index1))
@@ -257,7 +264,7 @@ for angle_index=1:nTheta
             proj(detector_index,angle_index)=detector_value;
         end
     end
-    fprintf('%d %f\n',angle_index,max(max(weight_map(:,:,angle_index))));
+%     fprintf('%d %f\n',angle_index,max(max(weight_map(:,:,angle_index))));
 end
     
 % plot(proj);
