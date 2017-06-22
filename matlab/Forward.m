@@ -1,38 +1,35 @@
-field1='SourceToAxis';
-field2='SourceToDetector';
-field3='DetectorWidth';
-field4='DetectorHeight';
-field5='NumberOfRows';
-field6='NumberOfChannels';
-field7='DetectorPixelSize';
-field8='ImagePixelSize';
-field9='DetectorCenterOffset';
-field10='NumberOfViews';
-field11='AngleCoverage';
-field12='type';
-field13='CenterOfSource';
-field14='DetectorHorizontalVectorOffset';
-field15='DetectorVerticalVectorOffset';
-field16='ObjectSize';
+field1='SourceToAxisDistance';
+field2='SourceToDetectorDistance';
+field3='DetectorRealSize';%[width height]
+field5='NumberOfDetectorPixels'; %[width height]
+field7='DetectorPixelSpacing';%[width height]
+field9='ImagePixelSpacing';%[dx dy dz]
+field10='DetectorCenterOffset';
+field11='NumberOfViews';
+field12='StartAngle';
+field13='EndAngle';% in radian
+field14='method';
+field15='InitialSource'; %[x y]
+field16='InitialDetector';%[x y]
+field17='ImageNumberOfPixel';%[nx ny nz]
+field18='Dir';%direction of projection angle
 parameters=struct(field1,[],field2,[],field3,[],field4,[],field5,[],field6,[],...
     field7,[],field8,[],field9,[],field10,[],field11,[],field12,[],field13,[],...
-    field14,[],field15,[],field16,[]);
+    field14,[],field15,[],field16,[],field17,[] , field18,[]);
 parameters.SourceToAxis=1000;
 parameters.SourceToDetector=1500;
-parameters.DetectorWidth=400;
-parameters.DetectorHeight=300;
-parameters.NumberOfRows=1024;
-parameters.NumberOfChannels=768;
-parameters.DetectorPixelSize=[parameters.NumberOfRows/parameters.DetectorWidth,...
-    parameters.NumberOfChannels/parameters.DetectorHeight];
+parameters.DetectorRealSize=[400,300];
+parameters.NumberOfDetectorPixels=[1024,768];
+parameters.DetectorPixelSpacing=[parameters.NumberOfDetectorPixels(1)/parameters.DetectorRealSize(1),...
+    parameters.NumberOfDetectorPixels(2)/parameters.DetectorRealSize(2)];
 parameters.DetectorCenterOffset=[0,0]; %x, y
-parameters.CenterOfSource=[0,0,0];
-parameters.ObjectSize=[nx,ny,nz];
-parameters.ImagePixelSize=[ds,dy,dz];
+parameters.InitialSource=[0,0,0];
+parameters.ImageNumberOfPixel=[nx,ny,nz];
+parameters.ImagePixelSpacing=[dx,dy,dz];
 % parameters.DetectorNormal=[0,0,1];
 parameters.AngleCoverage=2*pi;
 parameters.NumberOfViews=100;
-parameters.type='distance-driven';
+parameters.type='siddon';
 nx=512;
 ny=512;
 nz=430;

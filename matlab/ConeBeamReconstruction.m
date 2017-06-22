@@ -61,8 +61,8 @@ for i=1:NumberOfViews
             Recon(:,:,l)=Recon(:,:,l)+InterpW.*tmp*dtheta;
         end
     else
-        for l=256:256
-%         for l=1:ReconZ
+%         for l=256:256
+        for l=1:ReconZ
             InterpX=(R.*t)./(R-s);
             InterpY=(R.*z(l))./(R-s);
             InterpW=(R^2)./(R-s).^2;
@@ -77,4 +77,4 @@ toc
 % f=fopen('ConeBeamReconstructed.dat','w');
 % fwrite(f,Recon,precision);
 % fclose(f);
-CompareCBCTRecon; 
+% CompareCBCTRecon; 
