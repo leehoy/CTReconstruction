@@ -97,9 +97,9 @@ for angle_index=1:nTheta
                         end
                         detector_value=detector_value+...
                             ph(image_row_index,pixel)*weight/...
-                            (coord2-coord1);
+                            abs(coord2-coord1);
                         weight_map(image_row_index,pixel,angle_index)=weight_map(image_row_index,pixel,angle_index)+...
-                            weight/(coord2-coord1);
+                            weight/abs(coord2-coord1);
                     elseif(max(coord1,coord2)>Xplane(end))
 %                       One of the ray not passing the phantom
 %                       right boundary
@@ -111,14 +111,16 @@ for angle_index=1:nTheta
                             weight=Xplane(pixel)-coord2;
                         end
                         detector_value=detector_value+ph(image_row_index,pixel-1)*...
-                            weight/(coord2-coord1);
+                            weight/abs(coord2-coord1);
                         weight_map(image_row_index,pixel-1,angle_index)=weight_map(image_row_index,pixel-1,angle_index)+...
-                            weight/(coord2-coord1);
+                            weight/abs(coord2-coord1);
                     elseif(abs(image_col_index2-image_col_index1)>1)
 %                       Both ray passing through the phantom, they are
 %                       separated more than 2 voxels
                         min_plane=min(Xplane(image_col_index1),Xplane(image_col_index2));
                         max_plane=max(Xplane(image_col_index1),Xplane(image_col_index2));
+                        min_coord=min(coord1,coord2);
+                        max_coord=max(coord1,coord2);
                         if(min_plane==Xplane(image_col_index1))
                             min_plane_index=image_col_index1;
                             max_plane_index=image_col_index2;
@@ -128,25 +130,24 @@ for angle_index=1:nTheta
                         end
 %                         coord1 is not always bigger than coord2
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
-                            ((min_plane+dx)-coord1)/(coord2-coord1);
+                            ((min_plane+dx)-min_coord)/abs(coord2-coord1);
                         weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+...
-                            ((min_plane+dx)-coord1)/(coord2-coord1);
+                            ((min_plane+dx)-min_coord)/abs(coord2-coord1);
                         for pixels=min_plane_index+1:max_plane_index-1
                             detector_value=detector_value+ph(image_row_index,pixels)...
-                                *(dx)/(coord2-coord1);
+                                *(dx)/abs(coord2-coord1);
                             weight_map(image_row_index,pixels,angle_index)=weight_map(image_row_index,pixels,angle_index)+...
-                            (Xplane(pixels+1)-Xplane(pixels))/(coord2-coord1);
+                            (dx)/abs(coord2-coord1);
                         end
                         detector_value=detector_value+ph(image_row_index,image_col_index2)*...
-                            (coord2-max_plane)/(coord2-coord1);
+                            (max_coord-max_plane)/abs(coord2-coord1);
                          weight_map(image_row_index,image_col_index2,angle_index)=weight_map(image_row_index,image_col_index2,angle_index)+...
-                            (coord2-max_plane)/(coord2-coord1);
-                        
+                            (max_coord-max_plane)/abs(coord2-coord1);
                     else
                         max_plane=max(Xplane(image_col_index1),Xplane(image_col_index2));
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
-                            abs(max_plane-coord1)/(coord2-coord1)+...
-                            ph(image_row_index,image_col_index2)*abs(coord2-max_plane)/...
+                            (max_plane-coord1)/(coord2-coord1)+...
+                            ph(image_row_index,image_col_index2)*(coord2-max_plane)/...
                             (coord2-coord1);
                         weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+...
                             (max_plane-coord1)/(coord2-coord1);
@@ -261,7 +262,7 @@ for angle_index=1:nTheta
             proj(detector_index,angle_index)=detector_value;
         end
     end
-%     fprintf('%d %f\n',angle_index,max(max(weight_map(:,:,angle_index))));
+% %     fprintf('%d %f\n',angle_index,max(max(weight_map(:,:,angle_index))));
 end
     
 % plot(proj);
