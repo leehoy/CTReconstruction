@@ -31,6 +31,8 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 %   Add direction configurations
 %   Expand to cone-beam projection
 
+% weight_map changes dramatically between 77 and 78
+% maximum weight value at angle 50 is smaller than 23
 tmp=zeros(size(ny));
 weight_map=zeros(size(ph,1),size(ph,2),nTheta);
 for angle_index=1:nTheta
@@ -140,7 +142,8 @@ for angle_index=1:nTheta
                         if(abs(weight_min)<tol_min)
                             weight_min=0;
                         end
-%                         coord1 is not always bigger than coord2
+%                         coord1 is not always bigger than coord2, but it
+%                         doesn't matter
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
                             weight_min/abs(coord2-coord1);
                         weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+...
