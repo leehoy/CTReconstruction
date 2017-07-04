@@ -33,7 +33,6 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 
 % weight_map changes dramatically between 77 and 78
 % maximum weight value at angle 50 is smaller than 23
-tmp=zeros(size(ny));
 weight_map=zeros(size(ph,1),size(ph,2),nTheta);
 for angle_index=1:nTheta
     
@@ -86,7 +85,6 @@ for angle_index=1:nTheta
 %                   ray passing a single voxel
                     detector_value=detector_value+ph(image_row_index,image_col_index1);%/(coord2-coord1);
                     weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+1;
-                    tmp(image_row_index)=ph(image_row_index,image_col_index1);
                     % check order of phantom image
                 else
                     if(min(coord1,coord2)<Xplane(1))
@@ -185,14 +183,14 @@ for angle_index=1:nTheta
             end
             proj(detector_index,angle_index)=detector_value;
         else
-%             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-%             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-            DetectorBoundary1=DetectorIndex(:,detector_index);
-            DetectorBoundary2=DetectorIndex(:,detector_index+1);
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+%             DetectorBoundary1=DetectorIndex(:,detector_index);
+%             DetectorBoundary2=DetectorIndex(:,detector_index+1);
             k1=(SourceY-DetectorBoundary1(2))/(SourceX-DetectorBoundary1(1));
             intercept1=-k1*SourceX+SourceY;
             k2=(SourceY-DetectorBoundary2(2))/(SourceX-DetectorBoundary2(1)); % slope of line between source and detector boundray
@@ -212,7 +210,6 @@ for angle_index=1:nTheta
                 if( image_row_index1==image_row_index2)
                     detector_value=detector_value+ph(image_row_index1,image_col_index);%/(coord2-coord1);
                     weight_map(image_row_index1,image_col_index,angle_index)=weight_map(image_row_index1,image_col_index,angle_index)+1;
-                    tmp(image_col_index)=ph(image_row_index1,image_col_index);
                     % check order of phantom image
                 else
                     if(min(coord1,coord2)<Yplane(1))
@@ -287,8 +284,6 @@ for angle_index=1:nTheta
                         if(abs(weight2)<tol_min)
                             weight2=0;
                         end
-                        tmp(image_col_index)=ph(image_row_index1,image_col_index)*weight1/(coord2-coord1)+...
-                            ph(image_row_index2,image_col_index)*weight2/(coord2-coord1);
                         detector_value=detector_value+ph(image_row_index1,image_col_index)*...
                             weight1/(coord2-coord1)+...
                             ph(image_row_index2,image_col_index)*weight2/(coord2-coord1);
