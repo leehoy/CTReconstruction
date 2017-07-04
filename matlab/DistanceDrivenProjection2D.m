@@ -16,6 +16,8 @@ nTheta=360;
 StartAngle=0;
 EndAngle=2*pi;
 
+tol_min=1e-7;
+
 Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx; % pixel boundaries of image
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
 Xplane=Xplane-dx/2;
@@ -95,6 +97,9 @@ for angle_index=1:nTheta
                             pixel=image_col_index1;
                             weight=coord1-Xplane(pixel);
                         end
+                        if(abs(weight)<tol_min)
+                            weight=0;
+                        end
                         detector_value=detector_value+...
                             ph(image_row_index,pixel)*weight/...
                             abs(coord2-coord1);
@@ -109,6 +114,9 @@ for angle_index=1:nTheta
                         else
                             pixel=image_col_index2+1;
                             weight=Xplane(pixel)-coord2;
+                        end
+                        if(abs(weight)<tol_min)
+                            weight=0;
                         end
                         detector_value=detector_value+ph(image_row_index,pixel-1)*...
                             weight/abs(coord2-coord1);
@@ -128,31 +136,47 @@ for angle_index=1:nTheta
                             min_plane_index=image_col_index2;
                             max_plane_index=image_col_index1;
                         end
+                        weight_min=(min_plane+dx)-min_coord;
+                        if(abs(weight_min)<tol_min)
+                            weight_min=0;
+                        end
 %                         coord1 is not always bigger than coord2
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
-                            ((min_plane+dx)-min_coord)/abs(coord2-coord1);
+                            weight_min/abs(coord2-coord1);
                         weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+...
-                            ((min_plane+dx)-min_coord)/abs(coord2-coord1);
+                            weight_min/abs(coord2-coord1);
                         for pixels=min_plane_index+1:max_plane_index-1
                             detector_value=detector_value+ph(image_row_index,pixels)...
                                 *(dx)/abs(coord2-coord1);
                             weight_map(image_row_index,pixels,angle_index)=weight_map(image_row_index,pixels,angle_index)+...
                             (dx)/abs(coord2-coord1);
                         end
+                        weight_max=max_coord-max_plane;
+                        if(abs(weight_max)<tol_min)
+                            weight_max=0;
+                        end
                         detector_value=detector_value+ph(image_row_index,image_col_index2)*...
-                            (max_coord-max_plane)/abs(coord2-coord1);
+                            weight_max/abs(coord2-coord1);
                          weight_map(image_row_index,image_col_index2,angle_index)=weight_map(image_row_index,image_col_index2,angle_index)+...
-                            (max_coord-max_plane)/abs(coord2-coord1);
+                            weight_max/abs(coord2-coord1);
                     else
                         max_plane=max(Xplane(image_col_index1),Xplane(image_col_index2));
+                        weight1=max_plane-coord1;
+                        weight2=coord2-max_plane;
+                        if(abs(weight1)<tol_min)
+                            weight1=0;
+                        end
+                        if(abs(weight2)<tol_min)
+                            weight2=0;
+                        end
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
-                            (max_plane-coord1)/(coord2-coord1)+...
-                            ph(image_row_index,image_col_index2)*(coord2-max_plane)/...
+                            weight1/(coord2-coord1)+...
+                            ph(image_row_index,image_col_index2)*weight2/...
                             (coord2-coord1);
                         weight_map(image_row_index,image_col_index1,angle_index)=weight_map(image_row_index,image_col_index1,angle_index)+...
-                            (max_plane-coord1)/(coord2-coord1);
+                            weight1/(coord2-coord1);
                         weight_map(image_row_index,image_col_index2,angle_index)=weight_map(image_row_index,image_col_index2,angle_index)+...
-                            (coord2-max_plane)/(coord2-coord1);
+                            weight2/(coord2-coord1);
                     end
                 end
             end
@@ -189,37 +213,40 @@ for angle_index=1:nTheta
                     % check order of phantom image
                 else
                     if(min(coord1,coord2)<Yplane(1))
-                        if(image_row_index1<1 || image_row_index1>length(Yplane))
+                        if(coord1<Yplane(1))
                             pixel=image_row_index2;
-                        elseif(image_row_index2<1|| image_row_index2>length(Yplane))
-                            pixel=image_row_index1;
-                        elseif(Yplane(image_row_index1)<Yplane(image_row_index2))
-                            pixel=image_row_index2;
+                            weight=coord2-Yplane(pixel);
                         else
                             pixel=image_row_index1;
+                            weight=coord1-Yplane(pixel);
+                        end
+                        if(abs(weight)<tol_min)
+                            weight=0;
                         end
                         detector_value=detector_value+...
-                            ph(pixel,image_col_index)*(coord2-Yplane(pixel))/...
-                            (coord2-coord1);
+                            ph(pixel,image_col_index)*weight/abs(coord2-coord1);
                         weight_map(pixel,image_col_index,angle_index)=weight_map(pixel,image_col_index,angle_index)+...
-                            (coord2-Yplane(pixel))/(coord2-coord1);
+                            weight/abs(coord2-coord1);
                     elseif(max(coord1,coord2)>Yplane(end))
-                        if(image_row_index1<1 || image_row_index1>length(Yplane))
-                            pixel=image_row_index2+1;
-                        elseif(image_row_index2<1 || image_row_index2>length(Yplane))
+                        if(coord2>Yplane(end))
                             pixel=image_row_index1+1;
-                        elseif(Yplane(image_row_index1)<Yplane(image_row_index2))
-                            pixel=image_row_index1+1;
+                            weight=Yplane(pixel)-coord1;
                         else
                             pixel=image_row_index2+1;
+                            weight=Yplane(pixel)-coord2;
+                        end
+                        if(abs(weight)<tol_min)
+                            weight=0;
                         end
                         detector_value=detector_value+ph(pixel-1,image_col_index)*...
-                            (Yplane(pixel)-coord1)/(coord2-coord1);
+                            weight/abs(coord2-coord1);
                         weight_map(pixel-1,image_col_index,angle_index)=weight_map(pixel-1,image_col_index,angle_index)+...
-                            (Yplane(pixel)-coord1)/(coord2-coord1);
+                            weight/abs(coord2-coord1);
                     elseif(abs(image_row_index2-image_row_index1)>1)
                         min_plane=min(Yplane(image_row_index1),Yplane(image_row_index2));
                         max_plane=max(Yplane(image_row_index1),Yplane(image_row_index2));
+                        min_coord=min(coord1,coord2);
+                        max_coord=max(coord1,coord2);
                         if(min_plane==Yplane(image_row_index1))
                             min_plane_index=image_row_index1;
                             max_plane_index=image_row_index2;
@@ -227,35 +254,45 @@ for angle_index=1:nTheta
                             min_plane_index=image_row_index2;
                             max_plane_index=image_row_index1;
                         end
+                        weight_min=(min_plane+dy)-min_coord;
                         detector_value=detector_value+ph(min_plane_index,image_col_index)*...
-                            ((min_plane+dx)-coord1)/(coord2-coord1);
+                            weight_min/abs(coord2-coord1);
                         weight_map(min_plane_index,image_col_index,angle_index)=weight_map(min_plane_index,image_col_index,angle_index)+...
-                            ((min_plane+dx)-coord1)/(coord2-coord1);
+                            weight_min/abs(coord2-coord1);
                         for pixels=min_plane_index+1:max_plane_index-1
                             detector_value=detector_value+ph(pixels,image_col_index)...
-                                *(dx)/(coord2-coord1);
+                                *(dy)/abs(coord2-coord1);
                             weight_map(pixels,image_col_index,angle_index)=weight_map(pixels,image_col_index,angle_index)+...
-                            (Yplane(pixels+1)-Yplane(pixels))/(coord2-coord1);
+                            dy/abs(coord2-coord1);
+                        end
+                        weight_max=max_coord-max_plane;
+                        if(abs(weight_max)<tol_min)
+                            weight_max=0;
                         end
                         detector_value=detector_value+ph(max_plane_index,image_col_index)*...
-                            (coord2-max_plane)/(coord2-coord1);
+                            weight_max/abs(coord2-coord1);
                         weight_map(max_plane_index,image_col_index,angle_index)=weight_map(max_plane_index,image_col_index,angle_index)+...
-                            (coord2-max_plane)/(coord2-coord1);
+                            weight_max/abs(coord2-coord1);
                         
                     else
                         max_plane=max(Yplane(image_row_index1),Yplane(image_row_index2));
-                        tmp(image_col_index)=ph(image_row_index1,image_col_index)*...
-                            (max_plane-coord1)/(coord2-coord1)+...
-                            ph(image_row_index2,image_col_index)*(coord2-...
-                            max_plane)/(coord2-coord1);
+                        weight1=max_plane-coord1;
+                        weight2=coord2-max_plane;
+                        if(abs(weight1)<tol_min)
+                            weight1=0;
+                        end
+                        if(abs(weight2)<tol_min)
+                            weight2=0;
+                        end
+                        tmp(image_col_index)=ph(image_row_index1,image_col_index)*weight1/(coord2-coord1)+...
+                            ph(image_row_index2,image_col_index)*weight2/(coord2-coord1);
                         detector_value=detector_value+ph(image_row_index1,image_col_index)*...
-                            (max_plane-coord1)/(coord2-coord1)+...
-                            ph(image_row_index2,image_col_index)*(coord2-...
-                            max_plane)/(coord2-coord1);
+                            weight1/(coord2-coord1)+...
+                            ph(image_row_index2,image_col_index)*weight2/(coord2-coord1);
                         weight_map(image_row_index1,image_col_index,angle_index)=weight_map(image_row_index1,image_col_index,angle_index)+...
-                            (max_plane-coord1)/(coord2-coord1);
+                            weight1/(coord2-coord1);
                         weight_map(image_row_index2,image_col_index,angle_index)=weight_map(image_row_index2,image_col_index,angle_index)+...
-                            (coord2-max_plane)/(coord2-coord1);
+                            weight2/(coord2-coord1);
                     end
                 end
             end
