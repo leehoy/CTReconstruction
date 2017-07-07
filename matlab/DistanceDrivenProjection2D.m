@@ -22,6 +22,7 @@ Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx; % pixel boundaries of image
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
 Xplane=Xplane-dx/2;
 Yplane=Yplane-dy/2;
+% Yplane=Yplane(end:-1:1);
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
 proj=zeros(NumberOfDetectorPixels(1),nTheta);
@@ -58,7 +59,8 @@ for angle_index=1:nTheta
     end
     DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
     for detector_index=1:size(DetectorIndex,2)
-        if(abs(SourceX-DetectorIndex(1,detector_index))<abs(SourceY-DetectorIndex(2,detector_index)))
+        if(abs(SourceX-DetectorX)<=abs(SourceY-DetectorY))
+%         if(abs(SourceX-DetectorIndex(1,detector_index))<=abs(SourceY-DetectorIndex(2,detector_index)))
             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
                 DetectorPixelSize/2];
@@ -112,7 +114,6 @@ for angle_index=1:nTheta
                         if(abs(weight)<tol_min)
                             weight=0;
                         end
-                        weight=abs(weight);
                         detector_value=detector_value+...
                             ph(image_row_index,pixel)*weight/...
                             abs(coord2-coord1);
@@ -132,7 +133,6 @@ for angle_index=1:nTheta
                         if(abs(weight)<tol_min)
                             weight=0;
                         end
-                        weight=abs(weight);
                         detector_value=detector_value+ph(image_row_index,pixel-1)*...
                             weight/abs(coord2-coord1);
                         weight_map(image_row_index,pixel-1,angle_index)=...
@@ -156,7 +156,6 @@ for angle_index=1:nTheta
                         if(abs(weight_min)<tol_min)
                             weight_min=0;
                         end
-                        weight_min=abs(weight_min);
 %                         coord1 is not always bigger than coord2, but it
 %                         doesn't matter
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
@@ -175,7 +174,6 @@ for angle_index=1:nTheta
                         if(abs(weight_max)<tol_min)
                             weight_max=0;
                         end
-                        weight_max=abs(weight_max);
                         detector_value=detector_value+ph(image_row_index,image_col_index2)*...
                             weight_max/abs(coord2-coord1);
                          weight_map(image_row_index,image_col_index2,angle_index)=...
@@ -191,8 +189,6 @@ for angle_index=1:nTheta
                         if(abs(weight2)<tol_min)
                             weight2=0;
                         end
-                        weight1=abs(weight1);
-                        weight2=abs(weight2);
                         detector_value=detector_value+ph(image_row_index,image_col_index1)*...
                             weight1/(coord2-coord1)+...
                             ph(image_row_index,image_col_index2)*weight2/...
@@ -255,7 +251,6 @@ for angle_index=1:nTheta
                         if(abs(weight)<tol_min)
                             weight=0;
                         end
-                        weight=abs(weight);
                         detector_value=detector_value+...
                             ph(pixel,image_col_index)*weight/abs(coord2-coord1);
                         weight_map(pixel,image_col_index,angle_index)=...
@@ -272,7 +267,6 @@ for angle_index=1:nTheta
                         if(abs(weight)<tol_min)
                             weight=0;
                         end
-                        weight=abs(weight);
                         detector_value=detector_value+ph(pixel-1,image_col_index)*...
                             weight/abs(coord2-coord1);
                         weight_map(pixel-1,image_col_index,angle_index)=...
@@ -291,7 +285,9 @@ for angle_index=1:nTheta
                             max_plane_index=image_row_index1;
                         end
                         weight_min=(min_plane+dy)-min_coord;
-                        weight_min=abs(weight_min);
+                        if(abs(weight_min)<tol_min)
+                            weight_min=0;
+                        end
                         detector_value=detector_value+ph(min_plane_index,image_col_index)*...
                             weight_min/abs(coord2-coord1);
                         weight_map(min_plane_index,image_col_index,angle_index)=...
@@ -305,7 +301,6 @@ for angle_index=1:nTheta
                                 dy/abs(coord2-coord1);
                         end
                         weight_max=max_coord-max_plane;
-                        weight_max=abs(weight_max);
                         if(abs(weight_max)<tol_min)
                             weight_max=0;
                         end
@@ -325,8 +320,6 @@ for angle_index=1:nTheta
                         if(abs(weight2)<tol_min)
                             weight2=0;
                         end
-                        weight1=abs(weight1);
-                        weight2=abs(weight2);
                         detector_value=detector_value+ph(image_row_index1,image_col_index)*...
                             weight1/(coord2-coord1)+...
                             ph(image_row_index2,image_col_index)*weight2/(coord2-coord1);
