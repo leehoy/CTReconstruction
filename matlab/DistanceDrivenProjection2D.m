@@ -12,7 +12,7 @@ NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
 dx=0.5; %phantom pixel spacing
 dy=0.5;
-nTheta=720;
+nTheta=90;
 StartAngle=0;
 EndAngle=2*pi;
 
@@ -22,6 +22,7 @@ Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx; % pixel boundaries of image
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
 Xplane=Xplane-dx/2;
 Yplane=Yplane-dy/2;
+Yplane=Yplane(end:-1:1);
 % Yplane=Yplane(end:-1:1);
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
@@ -37,7 +38,7 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 weight_map=zeros(size(ph,1),size(ph,2),nTheta);
 % ray_angle=zeros(nTheta,NumberOfDetectorPixels(1));
 
-for angle_index=1:10
+for angle_index=1:nTheta
     count1=0;count2=0;count3=0;count4=0;count5=0;count6=0;
     SourceX=-SAD*sin(theta(angle_index)); % source coordinate
     SourceY=SAD*cos(theta(angle_index));
@@ -57,19 +58,19 @@ for angle_index=1:10
     if(DetectorY>0)
         DetectorIndex=DetectorIndex(:,end:-1:1);
     end
-%     DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
-    for detector_index=1:size(DetectorIndex,2)-1
+    DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
+    for detector_index=1:size(DetectorIndex,2)
 %         tmp=zeros(nx,ny);
 %         if(abs(SourceX-DetectorX)<=abs(SourceY-DetectorY))
         if(abs(SourceX-DetectorIndex(1,detector_index))<=abs(SourceY-DetectorIndex(2,detector_index)))
-%             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-%             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
-%                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
-%                 DetectorPixelSize/2];
-            DetectorBoundary1=DetectorIndex(:,detector_index); % this values need to be changed to poiting boundary of detector cell
-            DetectorBoundary2=DetectorIndex(:,detector_index+1);% this values need to be changed to poiting boundary of detector cell
+            DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+            DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
+                DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
+                DetectorPixelSize/2];
+%             DetectorBoundary1=DetectorIndex(:,detector_index); % this values need to be changed to poiting boundary of detector cell
+%             DetectorBoundary2=DetectorIndex(:,detector_index+1);% this values need to be changed to poiting boundary of detector cell
             k1=(SourceX-DetectorBoundary1(1))/(SourceY-DetectorBoundary1(2));
             intercept1=-k1*SourceY+SourceX;
             k2=(SourceX-DetectorBoundary2(1))/(SourceY-DetectorBoundary2(2)); % slope of line between source and detector boundray
@@ -248,6 +249,8 @@ for angle_index=1:10
             DetectorBoundary2=[DetectorIndex(1,detector_index)+cos(theta(angle_index))*...
                 DetectorPixelSize/2,DetectorIndex(2,detector_index)+sin(theta(angle_index))*...
                 DetectorPixelSize/2];
+%             DetectorBoundary1=DetectorIndex(:,detector_index); % this values need to be changed to poiting boundary of detector cell
+%             DetectorBoundary2=DetectorIndex(:,detector_index+1);% this values need to be changed to poiting boundary of detector cell
             k1=(SourceY-DetectorBoundary1(2))/(SourceX-DetectorBoundary1(1));
             intercept1=-k1*SourceX+SourceY;
             k2=(SourceY-DetectorBoundary2(2))/(SourceX-DetectorBoundary2(1)); % slope of line between source and detector boundray
@@ -258,12 +261,12 @@ for angle_index=1:10
             for image_col_index=1:nx
                 coord1=k1*(Xplane(image_col_index)+dx/2)+intercept1; % y coordinate of detector pixel onto image pixel
                 coord2=k2*(Xplane(image_col_index)+dx/2)+intercept2;
-                if(max(coord1,coord2)<Yplane(1) || min(coord1,coord2)>Yplane(end) ||...
-                        abs(max(coord1,coord2)-Yplane(1))<=tol_min||abs(min(coord1,coord2)-Yplane(end))<=tol_min)
+                if(max(coord1,coord2)<Yplane(end) || min(coord1,coord2)>Yplane(1) ||...
+                        abs(max(coord1,coord2)-Yplane(end))<=tol_min||abs(min(coord1,coord2)-Yplane(1))<=tol_min)
                     continue;
                 end
-                image_row_index1=floor((coord1-Yplane(1)+dy)/dy);
-                image_row_index2=floor((coord2-Yplane(1)+dy)/dy);
+                image_row_index1=floor((abs(coord1-Yplane(1))+dy)/dy);
+                image_row_index2=floor((abs(coord2-Yplane(1))+dy)/dy);
                 % image_col_indexes are real cooordinate, not index
                 % how to check the line intersection is out of the phantom
                 % or not?
@@ -277,13 +280,13 @@ for angle_index=1:10
 %                     tmp(image_row_index,image_col_index)=1;
                     % check order of phantom image
                 else
-                    if(min(coord1,coord2)<Yplane(1) || abs(min(coord1,coord2)-Yplane(1))<=tol_min)
-                        if(coord1<=Yplane(1))
+                    if(min(coord1,coord2)<Yplane(end) || abs(min(coord1,coord2)-Yplane(end))<=tol_min)
+                        if(coord1<=Yplane(end))
                             pixel=image_row_index2;
-                            weight=coord2-Yplane(pixel);
+                            weight=coord2-Yplane(pixel+1);
                         else
                             pixel=image_row_index1;
-                            weight=coord1-Yplane(pixel);
+                            weight=coord1-Yplane(pixel+1);
                         end
                         if(abs(weight)<tol_min)
                             weight=0;
@@ -302,8 +305,8 @@ for angle_index=1:10
                                 dy/abs(coord2-coord1);
 %                             tmp(p,image_col_index)=dy/abs(coord2-coord1);
                         end
-                    elseif(max(coord1,coord2)>Yplane(end) || abs(max(coord1,coord2)-Yplane(end))<tol_min)
-                        if(coord2>=Yplane(end))
+                    elseif(max(coord1,coord2)>Yplane(1) || abs(max(coord1,coord2)-Yplane(1))<tol_min)
+                        if(coord2>=Yplane(1))
                             pixel=image_row_index1+1;
                             weight=Yplane(pixel)-coord1;
                         else
@@ -403,6 +406,6 @@ for angle_index=1:10
 end
 
 % plot(proj);
-% imagesc(proj);
-% colormap gray;
+imagesc(proj);
+colormap gray;
 toc
