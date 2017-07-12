@@ -1,4 +1,5 @@
 tic;
+
 nx=512;
 ny=nx;
 ph=phantom(nx);
@@ -10,20 +11,28 @@ SDD=sqrt(sum((Source_init-Detector_init).^2));
 DetectorPixelSize=0.5; % Detector pixel spacing
 NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
-dx=0.5; %phantom pixel spacing
-dy=-0.5;
+PhantomPixelSpacingX=0.5;
+PhantomPixelSpacingY=0.5;
 nTheta=360;
 StartAngle=0;
 EndAngle=2*pi;
+
+
+dx=PhantomPixelSpacingX; %phantom pixel spacing
+dy=-PhantomPixelSpacingY;
+
 
 tol_min=1e-7;
 
 Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx; % pixel boundaries of image
 % Yplane=(PhantomCenter(2)-size(ph,2)/2+(ny:-1:0))*dy;
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
-% Yplane=Yplane(end:-1:1);
 Xplane=Xplane-dx/2;
 Yplane=Yplane-dy/2;
+% Y index starts from top of the image which has the highest y coordinate
+% value, if it changes sign of dy and condition in line 96 should be
+% changed
+
 theta=linspace(StartAngle,EndAngle,nTheta+1);
 theta=theta(1:end-1);
 proj=zeros(NumberOfDetectorPixels(1),nTheta);
@@ -33,8 +42,6 @@ proj=zeros(NumberOfDetectorPixels(1),nTheta);
 %   Add direction configurations
 %   Expand to cone-beam projection
 
-% Normalization for each pixel and ray is required
-% maximum weight value at angle 50 is smaller than 23
 weight_map=zeros(size(ph,1),size(ph,2),nTheta);
 
 for angle_index=1:nTheta
@@ -80,19 +87,12 @@ for angle_index=1:nTheta
                     continue;
                 end
                 intersection_slope=(SourceX-DetectorIndex(1,detector_index))/(SourceY-DetectorIndex(2,detector_index));
-                intersection_intercept=SourceX-intersection_slope*SourceY;
-                intersection1=intersection_slope*Yplane(image_row_index)+intersection_intercept;
-                intersection2=intersection_slope*Yplane(image_row_index+1)+intersection_intercept;
-%                 intersection_length=sqrt( (intersection1-intersection2).^2+(Yplane(image_row_index)-Yplane(image_row_index+1)).^2);
                 intersection_length=abs(dy)/cos(atan(intersection_slope));
                 image_col_index1=floor((coord1-Xplane(1)+dx)/dx);
                 image_col_index2=floor((coord2-Xplane(1)+dx)/dx);
                 % image_col_indexes are real cooordinate, not index
                 % how to check the line intersection is out of the phantom
                 % or not?
-%                 if(max(image_col_index1,image_col_index2)<=1 || min(image_col_index1,image_col_index2)>=nx)
-%                     continue;
-%                 end
                 if( image_col_index1==image_col_index2 )
 %                   ray passing a single voxel
                     detector_value=detector_value+ph(image_row_index,image_col_index1)*intersection_length;%/abs(coord2-coord1);
@@ -214,7 +214,6 @@ for angle_index=1:nTheta
                     end
                 end
             end
-%             proj(detector_index,angle_index)=detector_value*DetectorPixelSize/ray_normalization;
             proj(detector_index,angle_index)=detector_value/ray_normalization;
         else
             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
@@ -238,21 +237,13 @@ for angle_index=1:nTheta
                     continue;
                 end
                 intersection_slope=(SourceY-DetectorIndex(2,detector_index))/(SourceX-DetectorIndex(1,detector_index));
-                intersection_intercept=SourceY-intersection_slope*SourceX;
-                intersection1=intersection_slope*Xplane(image_col_index)+intersection_intercept;
-                intersection2=intersection_slope*Xplane(image_col_index+1)+intersection_intercept;
-%                 intersection_length=sqrt((intersection1-intersection2).^2+(Xplane(image_col_index)-Xplane(image_col_index+1)).^2);
                 intersection_length=dx/cos(atan(intersection_slope));
                 image_row_index1=floor((abs(coord1-Yplane(1))+abs(dy))/abs(dy));
                 image_row_index2=floor((abs(coord2-Yplane(1))+abs(dy))/abs(dy));
-                % image_col_indexes are real cooordinate, not index
-                % how to check the line intersection is out of the phantom
-                % or not?
                 if( image_row_index1==image_row_index2)
                     detector_value=detector_value+ph(image_row_index1,image_col_index)*intersection_length;%/abs(coord2-coord1);
                     weight_map(image_row_index1,image_col_index,angle_index)=...
                         weight_map(image_row_index1,image_col_index,angle_index)+1*intersection_length;%/abs(coord2-coord1);
-                    % check order of phantom image
                 else
                     if(min(coord1,coord2)<Yplane(end) || abs(min(coord1,coord2)-Yplane(end))<=tol_min)
                         if(coord1<=Yplane(end))
@@ -360,15 +351,11 @@ for angle_index=1:nTheta
                     end
                 end
             end
-%             proj(detector_index,angle_index)=detector_value*DetectorPixelSize/ray_normalization;
             proj(detector_index,angle_index)=detector_value/ray_normalization;
         end
     end
 end
-
-% plot(proj);
 close all;
 imagesc(proj);
 colormap gray;
 toc
-figure;plot(proj(300,:));hold on;plot(proj_siddon(300,:));
