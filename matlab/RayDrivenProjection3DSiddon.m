@@ -8,14 +8,17 @@ Detector_init=[0,-500,0]; % Initial detector position
 Origin=[0,0,0]; % Rotating center
 SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
-DetectorPixelSizeH=0.384; % Detector pixel spacing
-DetectorPixelSizeV=0.384; % Detector pixel spacing
+DetectorPixelSizeH=0.5; % Detector pixel spacing
+DetectorPixelSizeV=0.5; % Detector pixel spacing
 NumberOfDetectorPixels=[1024 ,768]; % Number of detector rows and chnnels
 PhantomCenter=[0,0,0]; % Center of phantom
-dx=0.5; %phantom pixel spacing
-dy=0.5;
-dz=0.5;
-nTheta=360;
+PhantomPixelSpacingX=0.5;
+PhantomPixelSpacingY=0.5;
+PhantomPixelSpacingZ=0.5;
+dx=PhantomPixelSpacingX; %phantom pixel spacing
+dy=-PhantomPixelSpacingY;
+dz=-PhantomPixelSpacingZ;
+nTheta=90;
 StartAngle=0;
 EndAngle=2*pi;
 
@@ -104,7 +107,7 @@ for angle_index=1:nTheta
                 end
                 if(abs(SourceY-DetectorIndex(2,detector_index_h,detector_index_v))<tol_min)
                     alpha_y=[];
-                elseif(SourceY<DetectorIndex(2,detector_index_h,detector_index_v))
+                elseif(SourceY>DetectorIndex(2,detector_index_h,detector_index_v))
                     j_min=ceil((ny+1)-(Yplane(end)-alpha_min*(DetectorIndex(2,detector_index_h,detector_index_v)...
                         -SourceY)-SourceY)/dy);
                     j_max=floor(1+(SourceY+alpha_max*(DetectorIndex(2,detector_index_h,detector_index_v)...
@@ -119,7 +122,7 @@ for angle_index=1:nTheta
                 end
                 if(abs(SourceZ-DetectorIndex(3,detector_index_h,detector_index_v))<tol_min)
                     alpha_z=[];
-                elseif(SourceZ<DetectorIndex(3,detector_index_h,detector_index_v))
+                elseif(SourceZ>DetectorIndex(3,detector_index_h,detector_index_v))
                     k_min=ceil((nz+1)-(Zplane(end)-alpha_min*(DetectorIndex(3,detector_index_h,detector_index_v)...
                         -SourceZ)-SourceZ)/dz);
                     k_max=floor(1+(SourceZ+alpha_max*(DetectorIndex(3,detector_index_h,detector_index_v)...
