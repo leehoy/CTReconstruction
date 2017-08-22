@@ -1,6 +1,6 @@
 tic;
 
-nx=512;
+nx=256;
 ny=nx;
 ph=phantom(nx);
 Source_init=[0,1000]; % Initial source position
@@ -9,7 +9,7 @@ Origin=[0,0]; % Rotating center
 SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
 DetectorPixelSize=0.5; % Detector pixel spacing
-NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
+NumberOfDetectorPixels=[500 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
 PhantomPixelSpacingY=0.5;
@@ -103,7 +103,7 @@ for angle_index=1:nTheta
                     if(min(coord1,coord2)<Xplane(1) || abs(min(coord1,coord2)-Xplane(1))<=tol_min)
 %                       One of the ray not passing the phantom
 %                       left boundary
-                        if(coord1<=Xplane(1))
+                        if(coord1<Xplane(1) || abs(coord1-Xplane(1))<tol_min)
                             pixel=image_col_index2;
                             weight=coord2-Xplane(pixel);
                         else
@@ -129,7 +129,7 @@ for angle_index=1:nTheta
                     elseif(max(coord1,coord2)>Xplane(end) || abs(max(coord1,coord2)-Xplane(end))<=tol_min)
 %                       One of the ray not passing the phantom
 %                       right boundary
-                        if(coord2>=Xplane(end))
+                        if(coord2>Xplane(end) || abs(coord2-Xplane(end))<tol_min)
                             pixel=image_col_index1+1;
                             weight=Xplane(pixel)-coord1;
                         else
@@ -246,7 +246,7 @@ for angle_index=1:nTheta
                         weight_map(image_row_index1,image_col_index,angle_index)+1*intersection_length;%/abs(coord2-coord1);
                 else
                     if(min(coord1,coord2)<Yplane(end) || abs(min(coord1,coord2)-Yplane(end))<=tol_min)
-                        if(coord1<=Yplane(end))
+                        if(coord1<Yplane(end) || abs(coord1-Yplane(end))<tol_min)
                             pixel=image_row_index2;
                             weight=coord2-Yplane(pixel+1);
                         else
@@ -269,7 +269,7 @@ for angle_index=1:nTheta
                                 (abs(dy)/abs(coord2-coord1))*intersection_length;
                         end
                     elseif(max(coord1,coord2)>Yplane(1) || abs(max(coord1,coord2)-Yplane(1))<tol_min)
-                        if(coord2>=Yplane(1))
+                        if(coord2>Yplane(1) || abs(coord2-Yplane(1))<tol_min)
                             pixel=image_row_index1;
                             weight=Yplane(pixel)-coord1;
                         else

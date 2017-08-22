@@ -4,7 +4,7 @@
 % (1985).
 tic;
 %% Input parameters
-nx=512;
+nx=256;
 ny=nx;
 ph=phantom(nx);
 % ph=recon(:,:,10);
@@ -13,7 +13,7 @@ Detector_init=[0,-500]; % Initial detector position
 Origin=[0,0]; % Rotating center
 DetectorPixelSize=0.5; % Detector pixel spacing
 % DetectorPixelSize=445.059/750; % Detector pixel spacing
-NumberOfDetectorPixels=[1024 ,1]; % Number of detector rows and chnnels
+NumberOfDetectorPixels=[500 ,1]; % Number of detector rows and chnnels
 % NumberOfDetectorPixels=[750 ,1]; % Number of detector rows and chnnels
 PhantomCenter=[0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
