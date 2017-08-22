@@ -10,7 +10,7 @@ SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
 DetectorPixelSizeH=0.5; % Detector pixel spacing
 DetectorPixelSizeV=0.5; % Detector pixel spacing
-NumberOfDetectorPixels=[1024 ,768]; % Number of detector rows and chnnels
+NumberOfDetectorPixels=[512 ,384]; % Number of detector rows and chnnels
 PhantomCenter=[0,0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
 PhantomPixelSpacingY=0.5;
@@ -180,7 +180,7 @@ for angle_index=1:nTheta
 end
 % imagesc(proj);
 % colormap gray;
-f=fopen('Proj.dat','w');
+f=fopen('Proj_siddons3D.dat','w');
 fwrite(f,proj,'float32');
 fclose(f);
 toc
