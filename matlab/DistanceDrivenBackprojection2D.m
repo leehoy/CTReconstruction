@@ -8,13 +8,15 @@ function [ recon ] = DistanceDrivenBackprojection2D( proj )
     D=500;
     r_spacing=0.5;
     deltaS=r_spacing*R/(R+D);
+    SourceCenter=[-1000, 0];
+    DetectorCenter=[500,0];
     nx=256;
     ny=nx;
 %     DetectorSize=r_spacing*DetectorWidth;
     gamma=((0:N-1)-(N-1)/2)*deltaS;
     ZeroPaddedLength=2^nextpow2(2*(N-1));
     cutoff=0.3;
-    FilterType='ram-lak';
+    FilterType='hann';
     filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff)*0.5;
 %     fov=2*R*sin(atan((DetectorSize/2)/(R+D)));
     ReconSpacingX=0.5; % fov/nx;
@@ -42,43 +44,62 @@ function [ recon ] = DistanceDrivenBackprojection2D( proj )
         Q=Q(1:length(R2));
 %         fprintf('%d\n',i);
 %         [DetectorBoundary1,DetectorBoundary2]=DetectorBoundaryFinder(N,r_spacing,angle,D);
-        recon=recon+backproj(Q,recon_planeX,recon_planeY,angle,R,R+D,N)*dtheta;
+        recon=recon+backproj(Q,recon_planeX,recon_planeY,angle,R,R+D,N,r_spacing,SourceCenter,DetectorCenter)*dtheta;
     end
     close all;
     imshow(recon,[]);
 end
-function bp=backproj(proj,recon_planeX,recon_planeY,angle,SAD,SDD,nd)
+function bp=backproj(proj,recon_planeX,recon_planeY,angle,SAD,SDD,nd,DetectorPixelSpacing,Source,Detector)
     nx=length(recon_planeX)-1;
     ny=length(recon_planeY)-1;
+    SourceX=Source(1);
+    SourceY=Source(2);
+    DetectorX=Detector(1);
+    DetectorY=Detector(2);
     bp=zeros(nx,ny);
     dx=recon_planeX(2)-recon_planeX(1);
     dy=recon_planeY(2)-recon_planeY(1);
     recon_PixelsX=recon_planeX(1:end-1)+dx/2; %x center of the pixels
     recon_PixelsY=recon_planeY(1:end-1)+dy/2; %y center of the pixels
-    fprintf('%f\n',angle);
-%     recon_PixelsX_new=recon_PixelsX*cos(angle)+recon_PixelsY*sin(angle);
-%     recon_PixelsY_new=-recon_PixelsX*sin(angle)+recon_PixelsY*cos(angle);
-    
-%     recon_PixelsX_new=recon_PixelsX*cos(angle)-recon_PixelsY*sin(angle);
-%     recon_PixelsY_new=recon_PixelsX*sin(angle)+recon_PixelsY*cos(angle);
-%     assert(min(n_min(:))>0 && max(n_min(:))<nd+1 && min(n_min(:))>0 && max(n_max(:))<nd+1);
     for i=1:nx
         for j=1:ny
             xr=recon_PixelsX(i)*cos(angle)+recon_PixelsY(j)*sin(angle);
             yr=-recon_PixelsX(i)*sin(angle)+recon_PixelsY(j)*cos(angle);
-            n_min=((yr-0.25)/(xr+SAD))*SDD/0.5+nd/2;
-            n_max=((yr+0.25)/(xr+SAD))*SDD/0.5+nd/2;
-%             beam path length need to be considered
+%             not exact detector contribution making noisy signal?
+            n_min=((yr-0.25)/(xr+SAD))*SDD/DetectorPixelSpacing+nd/2;
+            n_max=((yr+0.25)/(xr+SAD))*SDD/DetectorPixelSpacing+nd/2;
+            
             for k=floor(n_min):floor(n_max)
                 if(k<1 || k>nx)
                     continue;
                 end
+                y1=DetectorY+(k-nd/2)*DetectorPixelSpacing;
+                slope=(y1-SourceY)/(DetectorX-SourceX);
+                intercept=slope*xr-yr;
+                a=sqrt(slope^2/(1+slope^2));
+                b=-1*sign(slope)*sqrt(1-a^2);
+                c=b*intercept;
+                a2=abs(a);
+                b2=abs(b);
+                d=abs(a*xr+b*yr+c)/sqrt(a^2+b^2);
+                d1=abs(a2-b2)/2;
+                d2=(a2+b2)/2;
+                if(d<d1 && a2<b2)
+                    l=1/b2;
+                elseif(d<d1&& a2>=b2)
+                    l=1/a2;
+                elseif(d>=d1&& d<d2)
+                    l=(d2-d)/(a2*b2);
+                elseif(d>=d2)
+                    l=0;
+                end
+                l=1;
                 if(k==floor(n_min))
-                    bp(i,j)=proj(k)*(ceil(n_min)-n_min)/(n_max-n_min);
+                    bp(i,j)=proj(k)*1*l*(ceil(n_min)-n_min)/(n_max-n_min);
                 elseif(k>floor(n_min) && k<floor(n_max))
-                    bp(i,j)=proj(k)*(n_max-n_min);
+                    bp(i,j)=proj(k)*1*l/(n_max-n_min);
                 elseif(k==floor(n_max))
-                    bp(i,j)=proj(k)*(n_max-floor(n_max))/(n_max-n_min);
+                    bp(i,j)=proj(k)*1*l*(n_max-floor(n_max))/(n_max-n_min);
                 else
                     fprintf('????\n');
                 end
