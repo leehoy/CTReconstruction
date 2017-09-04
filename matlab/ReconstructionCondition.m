@@ -22,7 +22,7 @@ params.cutoff=0.5; % cutoff must be posed between 0~0.5
 
 %% Reconstruction method
 params.method='distance';
-params.direction='ccw'; % this will be included in the future
+params.direction='cw'; % this will be included in the future
 tic;
 if(strcmpi(params.method,'distance'))
     recon=DistanceDrivenBackprojection2D(proj_siddon,params);
