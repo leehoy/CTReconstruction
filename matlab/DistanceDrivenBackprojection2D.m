@@ -7,8 +7,8 @@ function [ recon ] = DistanceDrivenBackprojection2D( proj,params )
     D=params.SourceToDetector-R;
     r_spacing=params.DetectorPixelSpacing;
     deltaS=r_spacing*R/(R+D);
-    SourceCenter=[-R, 0];
-    DetectorCenter=[D,0];
+    SourceCenter=[0,R];
+    DetectorCenter=[0,-D];
     nx=params.nx;
     ny=params.ny;
     gamma=((0:N-1)-(N-1)/2)*deltaS;
@@ -17,17 +17,15 @@ function [ recon ] = DistanceDrivenBackprojection2D( proj,params )
     FilterType=params.FilterType;
     filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff)*0.5;
     ReconSpacingX=params.ReconSpacingX; % fov/nx;
-    ReconSpacingY=-params.ReconSpacingY;
+    ReconSpacingY=params.ReconSpacingY;
     recon_planeX=(-nx/2+(0:nx))*ReconSpacingX; % pixel boundaries of image
     recon_planeY=(-ny/2+(0:ny))*ReconSpacingY;
     recon_planeX=recon_planeX-ReconSpacingX/2;
     recon_planeY=recon_planeY-ReconSpacingY/2;
-    x=(-(nx-1)/2:(nx-1)/2);
-    y=(-(ny-1)/2:(ny-1)/2);
-    [X,Y]=meshgrid(x,y);
-    xpr=X;
-    ypr=Y;
-    [phi,r]=cart2pol(xpr,ypr);
+    x=(-(nx-1)/2:(nx-1)/2)*ReconSpacingX;
+    y=((ny-1)/2:-1:-(ny-1)/2)*ReconSpacingY;
+    [Y,X]=meshgrid(y,x);
+    [phi,r]=cart2pol(X,Y);
     recon=zeros(nx,ny);
     theta=linspace(0,360,M+1);
     theta=theta*(pi/180);
@@ -41,6 +39,7 @@ function [ recon ] = DistanceDrivenBackprojection2D( proj,params )
         Q=real(ifft(ifftshift(fftshift(fft(R2,ZeroPaddedLength)).*filter)));
         Q=Q(1:length(R2))*deltaS;
         recon=recon+backproj(Q,recon_planeX,recon_planeY,angle,R,R+D,N,r_spacing)./(U.^2)*dtheta;
+        imshow(recon,[]);
     end
 end
 function bp=backproj(proj,recon_planeX,recon_planeY,angle,SAD,SDD,nd,DetectorPixelSpacing)
@@ -69,18 +68,18 @@ function bp=backproj(proj,recon_planeX,recon_planeY,angle,SAD,SDD,nd,DetectorPix
             
             x_set=[x1,x2,x3,x4];
             y_set=[y1,y2,y3,y4];
-            yl=min(y_set);
-            xl=x_set(y_set==yl);
-            if(length(xl)>1)
-                xl=xc;
+            xl=min(x_set);
+            yl=y_set(x_set==xl);
+            if(length(yl)>1)
+                yl=yc;
             end
-            yr=max(y_set);
-            xr=x_set(y_set==yr);
-            if(length(xr)>1)
-                xr=xc;
+            xr=max(x_set);
+            yr=y_set(x_set==xr);
+            if(length(yr)>1)
+                yr=yc;
             end
-            n_l=((yl)/(xl+SAD))*SDD/DetectorPixelSpacing+nd/2;
-            n_r=((yr)/(xr+SAD))*SDD/DetectorPixelSpacing+nd/2;
+            n_l=((xl)/(-yl+SAD))*SDD/DetectorPixelSpacing+nd/2;
+            n_r=((xr)/(-yr+SAD))*SDD/DetectorPixelSpacing+nd/2;
             n_min=min(n_l,n_r);
             n_max=max(n_l,n_r);
             for k=floor(n_min):floor(n_max)
@@ -89,16 +88,16 @@ function bp=backproj(proj,recon_planeX,recon_planeY,angle,SAD,SDD,nd,DetectorPix
                 end
                 assert(n_min~=n_max)
                 if(ceil(n_min)==floor(n_max))
-                    bp(i,j)=proj(k)*1;
+                    bp(j,i)=proj(k)*1;
                     continue;
                 end
 
                if(k==floor(n_min))
-                    bp(i,j)=bp(i,j)+proj(k)*(ceil(n_min)-n_min)/(n_max-n_min);
+                    bp(j,i)=bp(j,i)+proj(k)*(ceil(n_min)-n_min)/(n_max-n_min);
                elseif(k>floor(n_min) && k<floor(n_max))
-                    bp(i,j)=bp(i,j)+proj(k)*1/(n_max-n_min);
+                    bp(j,i)=bp(j,i)+proj(k)*1/(n_max-n_min);
                elseif(k==floor(n_max))
-                    bp(i,j)=bp(i,j)+proj(k)*(n_max-floor(n_max))/(n_max-n_min);
+                    bp(j,i)=bp(j,i)+proj(k)*(n_max-floor(n_max))/(n_max-n_min);
                else
                     fprintf('????\n');
                end
