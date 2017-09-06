@@ -16,18 +16,18 @@ params.nz=360;
 params.nx=256;
 params.ny=256;
 params.ReconSpacingX=0.5;
-params.ReconSpacingY=0.5;
-params.FilterType='hann'; % filter type can be ram-lak, shepp-logan, cosing, hammin, and hann
+params.ReconSpacingY=-0.5;
+params.FilterType='hann'; % filter type can be ram-lak, shepp-logan, cosine, hammin, and hann
 params.cutoff=0.5; % cutoff must be posed between 0~0.5
 
 %% Reconstruction method
-params.method='distance';
+params.method='ray';
 params.direction='cw'; % this will be included in the future
 tic;
 if(strcmpi(params.method,'distance'))
-    recon=DistanceDrivenBackprojection2D(proj_siddon,params);
+    recon=DistanceDrivenBackprojection2D(proj,params);
 elseif(strcmpi(params.method,'ray'))
-    recon=RayDrivenBackprojection2D(proj_siddon,params);
+    recon=RayDrivenBackprojection2D(proj,params);
 elseif(strcmpi(params.method,'pixel'))
     %not implemented yet
 else
