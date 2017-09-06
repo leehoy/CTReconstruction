@@ -26,8 +26,10 @@ function [ recon ] = RayDrivenBackprojection2D( proj,params )
     recon_planeX=recon_planeX-ReconSpacingX/2;
     recon_planeY=recon_planeY-ReconSpacingY/2;
     x=(-(nx-1)/2:(nx-1)/2);
-    y=(-(ny-1)/2:(ny-1)/2);
-    [X,Y]=meshgrid(x,y);
+    y=(ny-1)/2:-1:-(ny-1)/2;
+%     y=(-(ny-1)/2:(ny-1)/2);
+%     [X,Y]=meshgrid(x,y);
+    [Y,X]=meshgrid(y,x);
     xpr=X;
     ypr=Y;
     [phi,r]=cart2pol(xpr,ypr);
@@ -44,6 +46,7 @@ function [ recon ] = RayDrivenBackprojection2D( proj,params )
         Q=real(ifft(ifftshift(fftshift(fft(R2,ZeroPaddedLength)).*filter)));
         Q=Q(1:length(R2))*deltaS;
         recon=recon+backproj(Q,recon_planeX,recon_planeY,angle,R,R+D,N,r_spacing,SourceCenter,DetectorCenter)./(U.^2)*dtheta;
+        imshow(recon,[]);
     end
     close all;
     imshow(recon,[]);
