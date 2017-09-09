@@ -1,6 +1,7 @@
 tic;
 nx=256;
 ny=nx;
+nz=nx;
 ph=phantom3d(nx);
 Source_init=[0,1000,0]; % Initial source position
 Detector_init=[0,-500,0]; % Initial detector position
@@ -9,11 +10,11 @@ SAD=sqrt(sum((Source_init-Origin).^2));
 SDD=sqrt(sum((Source_init-Detector_init).^2));
 DetectorPixelSize=[0.5,0.5]; % Detector pixel spacing
 NumberOfDetectorPixels=[512 ,384]; % Number of detector rows and chnnels
-PhantomCenter=[0,0]; % Center of phantom
+PhantomCenter=[0,0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
 PhantomPixelSpacingY=0.5;
 PhantomPixelSpacingZ=0.5;
-nTheta=90;
+nTheta=10;
 StartAngle=0;
 EndAngle=2*pi;
 
@@ -24,7 +25,7 @@ dz=-PhantomPixelSpacingZ;
 
 Xplane=(PhantomCenter(1)-size(ph,1)/2+(0:nx))*dx; % pixel boundaries of image
 Yplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
-Zplane=(PhantomCenter(2)-size(ph,2)/2+(0:ny))*dy;
+Zplane=(PhantomCenter(3)-size(ph,3)/2+(0:nz))*dz;
 Xplane=Xplane-dx/2;
 Yplane=Yplane-dy/2;
 Zplane=Zplane-dz/2;
