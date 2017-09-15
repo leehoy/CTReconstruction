@@ -66,6 +66,7 @@ for angle_index=1:nTheta
     DetectorIndex=DetectorIndex(:,1:end-1); % The index pointing center of detector pixels
     for detector_index=1:size(DetectorIndex,2)
         if(abs(SourceX-DetectorIndex(1,detector_index))<=abs(SourceY-DetectorIndex(2,detector_index)))
+%         if(abs(SourceX-DetectorX)<=abs(SourceY-DetectorY))
             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
                 DetectorPixelSize/2];
