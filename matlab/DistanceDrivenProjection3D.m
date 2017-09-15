@@ -14,7 +14,7 @@ PhantomCenter=[0,0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
 PhantomPixelSpacingY=0.5;
 PhantomPixelSpacingZ=0.5;
-nTheta=10;
+nTheta=90;
 StartAngle=0;
 EndAngle=2*pi;
 
