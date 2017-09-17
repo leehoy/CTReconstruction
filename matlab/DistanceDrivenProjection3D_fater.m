@@ -14,7 +14,7 @@ PhantomCenter=[0,0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
 PhantomPixelSpacingY=0.5;
 PhantomPixelSpacingZ=0.5;
-nTheta=360;
+nTheta=90;
 StartAngle=0;
 EndAngle=2*pi;
 
@@ -288,12 +288,7 @@ function proj=Project_on_X(image,coordU1,coordU2,coordV1,coordV2,image_u_plane,.
                     end
                     weight_sum=weight_sum+(weight1*weight2);
                     p_value=p_value+(weight1*weight2)*image(ix,k,l);
-                    assert( weight1>=0 && weight2>=0);
-                    
                 end
-            end
-            if(s_index_u>1 && e_index_u<size(image,3) && s_index_v>1 && e_index_v<size(image,3))
-                assert(abs(weight_sum)-1<tol_min);
             end
             proj(i,j)=p_value;
         end
