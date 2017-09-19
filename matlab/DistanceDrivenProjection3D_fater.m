@@ -14,7 +14,7 @@ PhantomCenter=[0,0,0]; % Center of phantom
 PhantomPixelSpacingX=0.5;
 PhantomPixelSpacingY=0.5;
 PhantomPixelSpacingZ=0.5;
-nTheta=90;
+nTheta=1;
 StartAngle=0;
 EndAngle=2*pi;
 
@@ -170,6 +170,7 @@ for angle_index=1:nTheta
                 intersection_length;
         end
     end
+    fprintf('elapsed time: %f\n',cputime-start_time);
     fprintf('%d\n',angle_index);
 
 end
@@ -192,7 +193,7 @@ function proj=Project_on_Z(image,coordU1,coordU2,coordV1,coordV2,image_u_plane,.
             s_index_v=min(image_index_v1(i,j),image_index_v2(i,j));
             e_index_v=max(image_index_v1(i,j),image_index_v2(i,j));
             for k=s_index_u:e_index_u
-                if(k<1 || k>size(image,2))
+                if(k<1 || k>size(image,1))
                     continue;
                 end
                 if(s_index_u==e_index_u)
@@ -201,7 +202,7 @@ function proj=Project_on_Z(image,coordU1,coordU2,coordV1,coordV2,image_u_plane,.
                     weight1=(image_u_plane(k+1)-min(coordU1(i,j),coordU2(i,j)))/...
                         abs(coordU1(i,j)-coordU2(i,j));
                 elseif(k==e_index_u)
-                    weight1=(image_u_plane(k)-max(coordU1(i,j),coordU2(i,j)))/...
+                    weight1=(max(coordU1(i,j),coordU2(i,j))-image_u_plane(k))/...
                         abs(coordU1(i,j)-coordU2(i,j));
                 else
                     weight1=abs(d_u_plane)/abs(coordU1(i,j)-coordU2(i,j));
@@ -210,7 +211,7 @@ function proj=Project_on_Z(image,coordU1,coordU2,coordV1,coordV2,image_u_plane,.
                     weight1=0;
                 end
                 for l=s_index_v:e_index_v
-                    if(l<1 || l>size(image,3))
+                    if(l<1 || l>size(image,2))
                         continue;
                     end
                     if(s_index_v==e_index_v)
@@ -308,7 +309,7 @@ function proj=Project_on_Y(image,coordU1,coordU2,coordV1,coordV2,image_u_plane,.
             s_index_v=min(image_index_v1(i,j),image_index_v2(i,j));
             e_index_v=max(image_index_v1(i,j),image_index_v2(i,j));
             for k=s_index_u:e_index_u
-                if(k<1 || k>size(image,2))
+                if(k<1 || k>size(image,1))
                     continue;
                 end
                 if(s_index_u==e_index_u)
