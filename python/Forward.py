@@ -354,6 +354,70 @@ __global__ void distance_project_on_x2(float* Dest,float* Src,float* slope_y1,fl
         }
 }
 
+__global__ void distance_project_on_z2(float* Dest,float* Src,float* slope_x1,float* slope_x2,float* slope_y1,float* slope_y2,float* intercept_x1,float* intercept_x2,float* intercept_y1,float* intercept_y2,float* Xplane,float* Yplane,float* Zplane,float* param){
+        int x=blockDim.x*blockIdx.x+threadIdx.x;
+        int y=blockDim.y*blockIdx.y+threadIdx.y;
+        int tid=y*gridDim.x*blockDim.x+x;
+        float dx=param[0];
+        float dy=param[1];
+        float dz=param[2];
+        int nx=(int)param[3],ny=(int)param[4],nz=(int)param[5],nu=(int)param[6],nv=(int)param[7];
+        int k=0,l=0,N=nu*nv;
+        float weight1=0.0,weight2=0.0;
+        int ix=(int) floor(tid*1.0 /N);
+        int pix_num=tid-(N*ix); 
+        float coord_x1,coord_x2,coord_y1,coord_y2;
+        int index_x1,index_x2,index_y1,index_y2;
+        coord_x1=slope_x1[pix_num]*(Zplane[iz]+dz/2)+intercept_x1[pix_num];
+        coord_x2=slope_x2[pix_num]*(Zplane[iz]+dz/2)+intercept_x2[pix_num];
+        coord_z1=slope_y1[pix_num]*(Zplane[iz]+dz/2)+intercept_y1[pix_num];
+        coord_z2=slope_y2[pix_num]*(Zplane[iz]+dz/2)+intercept_y2[pix_num];
+        index_x1=(int) floor((coord_x1-Xplane[0])*1.0/dx);
+        index_x2=(int) floor((coord_x2-Xplane[0])*1.0/dx);
+        index_y1=(int) floor((coord_y1-Yplane[0])*1.0/dy);
+        index_y2=(int) floor((coord_y2-Yplane[0])*1.0/dy);
+        int s_index_x=min(index_x1,index_x2);
+        int e_index_x=max(index_x1,index_x2);
+        int s_index_y=min(index_y1,index_y2);
+        int e_index_y=max(index_y1,index_y2);
+        if(tid<N*nz){
+            for(k=s_index_x;k<=e_index_x;k++){
+                if(k>=0 && k<= nx-1){
+                     if(s_index_x==e_index_x){
+                        weight1=1.0;
+                    }else if(k==s_index_x){
+                        weight1=(Xplane[k+1]-fmin(coord_x1,coord_x2)/fabs(coord_x1-coord_x2);
+                    }else if(k==e_index_x){
+                        weight1=(fmax(coord_x1,coord_x2)-Yplane[k])/fabs(coord_x1-coord_x2);
+                    }else{
+                        weight1=fabs(dx)/fabs(coord_x1-coord_x2);
+                    }
+                    if(fabs(weight1)<0.000001){
+                        weight1=0.0;
+                    }
+                    for(l=s_index_y;l<=e_index_y;l++){
+                        if(l>=0 && l<=ny-1){
+                            if(s_index_y==e_index_y){
+                                weight2=1.0;
+                            }else if(l==s_index_y){
+                                weight2=(fmax(coord_y1,coord_y2)-Yplane[l+1])/fabs(coord_y1-coord_y2);
+                            }else if(l==e_index_y){
+                                weight2=(Yplane[l]-fmin(coord_y1,coord_y2))/fabs(coord_y1-coord_y2);
+                            }else{
+                                weight2=fabs(dy)/fabs(coord_y1-coord_y2);
+                            }
+                            if(fabs(weight2)<0.000001){
+                                weight2=0.0;
+                            }
+                            atomicAdd(&Dest[pix_num],Src[(iz*nx*ny)+l*nx+k]*weight1*weight2);
+                        }
+                    }
+                }
+            }
+        }
+}
+
+
 """)
 # GPU function definition ends
 
@@ -430,9 +494,6 @@ class Forward:
         # z = np.reshape(repmat(DetectorIndexZ.T, 1, len(DetectorLength[0]) - 1), [len(DetectorLength[0]) - 1, len(DetectorLength[1]) - 1])
         z = repmat(DetectorIndexZ, DetectorLength[0].shape[0] - 1, 1).T
         assert((z[:, 0] == z[:, 1]).all())
-        # print(x.shape, y.shape, z.shape)
-#         plt.imshow(y,cmap='gray')
-#         plt.show()
         DetectorIndex = np.vstack((x[np.newaxis], y[np.newaxis], z[np.newaxis]))
         return DetectorIndex
     @staticmethod
@@ -499,9 +560,7 @@ class Forward:
             DetectorLength = np.array([np.arange(floor(-nu / 2), floor(nu / 2) + 1) * du, np.arange(floor(-nv / 2), floor(nv / 2) + 1) * dv])
             DetectorVectors = [eu, ev, ew]
             DetectorIndex = self.DetectorConstruction(Detector, DetectorLength, DetectorVectors, angle[i])
-            # print(DetectorIndex.shape, DetectorIndex.T.shape)
-            DetectorIndex.tofile('DetectorIndex/%04d.dat' % i, sep='', format='')
-            print('Detector initialization: ' + str(time.time() - start_time))
+            # print('Detector initialization: ' + str(time.time() - start_time))
             if(self.params['Method'] == 'Distance'):
                 start_time = time.time()
                 proj[i, :, :] = self.distance(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
@@ -509,7 +568,6 @@ class Forward:
             elif(self.params['Method'] == 'Ray'):
                 proj[i, :, :] = self.ray(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
             print('time taken: ' + str(time.time() - start_time) + '\n')
-                # proj[i,:,:]=distance_gpu()
         self.proj = proj
 
     def distance(self, DetectorIndex, Source, Detector, angle, Xplane, Yplane, Zplane):
@@ -527,6 +585,7 @@ class Forward:
             MAX_GRID_DIM_X = attrs[pycuda._driver.device_attribute.MAX_GRID_DIM_X]
             distance_proj_on_y_gpu = mod.get_function("distance_project_on_y2")
             distance_proj_on_x_gpu = mod.get_function("distance_project_on_x2")
+            distance_proj_on_z_gpu = mod.get_function("distance_project_on_z2")
             image = self.image.flatten().astype(np.float32)
             dest = pycuda.gpuarray.to_gpu(proj.flatten().astype(np.float32))
             x_plane_gpu = pycuda.gpuarray.to_gpu(Xplane.astype(np.float32))
@@ -538,7 +597,6 @@ class Forward:
         DetectorBoundaryV1 = np.array([DetectorIndex[0, :, :] , DetectorIndex[1, :, :] , DetectorIndex[2, :, :] - dv / 2])
         DetectorBoundaryV2 = np.array([DetectorIndex[0, :, :] , DetectorIndex[1, :, :] , DetectorIndex[2, :, :] + dv / 2])
 
-        # print('Detector boundary calculation: ' + str(time.time() - start_time))
         if(abs(Source[0] - Detector[0]) >= abs(Source[1] - Detector[1]) and abs(Source[0] - Detector[0]) >= abs(Source[2] - Detector[2])):
             SlopesU1 = (Source[1] - DetectorBoundaryU1[1, :, :]) / (Source[0] - DetectorBoundaryU1[0, :, :])
             InterceptsU1 = -SlopesU1 * Source[0] + Source[1]
@@ -600,23 +658,6 @@ class Forward:
                     image_y2 = floor((CoordY2 - Yplane[0] + 0) / dy)
                     image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                     image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-#                     if(self.params['GPU']):
-#                         proj_param = np.array([dy, dz, nx, ny, nz, nu, nv, ix]).astype(np.float32)
-#                         coord_y1_gpu = pycuda.gpuarray.to_gpu(CoordY1.flatten().astype(np.float32))
-#                         coord_y2_gpu = pycuda.gpuarray.to_gpu(CoordY2.flatten().astype(np.float32))
-#                         coord_z1_gpu = pycuda.gpuarray.to_gpu(CoordZ1.flatten().astype(np.float32))
-#                         coord_z2_gpu = pycuda.gpuarray.to_gpu(CoordZ2.flatten().astype(np.float32))
-#                         image_y1_gpu = pycuda.gpuarray.to_gpu(image_y1.flatten().astype(np.float32))
-#                         image_y2_gpu = pycuda.gpuarray.to_gpu(image_y2.flatten().astype(np.float32))
-#                         image_z1_gpu = pycuda.gpuarray.to_gpu(image_z1.flatten().astype(np.float32))
-#                         image_z2_gpu = pycuda.gpuarray.to_gpu(image_z2.flatten().astype(np.float32))
-#                         proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
-#                         distance_proj_on_x_gpu(dest, drv.In(image), coord_y1_gpu,
-#                                                coord_y2_gpu, coord_z1_gpu, coord_z2_gpu, y_plane_gpu, z_plane_gpu,
-#                                                image_y1_gpu, image_y2_gpu, image_z1_gpu, image_z2_gpu, proj_param_gpu,
-#                                                block=(blockX, blockY, blockZ), grid=(gridX, gridY))
-#                         del coord_y1_gpu, coord_y2_gpu, coord_z1_gpu, coord_z2_gpu, image_y1_gpu, image_y2_gpu, image_z1_gpu, image_z2_gpu, proj_param_gpu
-#                     else:
                     proj += self._distance_project_on_x(self.image, CoordY1, CoordY2, CoordZ1, CoordZ2, Yplane, Zplane, image_y1, image_y2, image_z1, image_z2, dy, dz, ix) * intersection_length
 
 
@@ -675,36 +716,15 @@ class Forward:
                 del dest
             else:
                 for iy in range(ny):
-                    # print(iy)
                     start_time = time.time()
                     CoordX1 = SlopesU1 * (Yplane[iy] + dy / 2) + InterceptsU1
                     CoordX2 = SlopesU2 * (Yplane[iy] + dy / 2) + InterceptsU2
                     CoordZ1 = SlopesV1 * (Yplane[iy] + dy / 2) + InterceptsV1
                     CoordZ2 = SlopesV2 * (Yplane[iy] + dy / 2) + InterceptsV2
-                    # print(dx,dz)
                     image_x1 = floor((CoordX1 - Xplane[0] + 0) / dx)
                     image_x2 = floor((CoordX2 - Xplane[0] + 0) / dx)
                     image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                     image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-                    # print('Coordiate calculation: ' + str(time.time() - start_time))
-#                     if(self.params['GPU']):
-#                         proj_param = np.array([dx, dz, nx, ny, nz, nu, nv, iy]).astype(np.float32)
-#                         coord_x1_gpu = pycuda.gpuarray.to_gpu(CoordX1.flatten().astype(np.float32))
-#                         coord_x2_gpu = pycuda.gpuarray.to_gpu(CoordX2.flatten().astype(np.float32))
-#                         coord_z1_gpu = pycuda.gpuarray.to_gpu(CoordZ1.flatten().astype(np.float32))
-#                         coord_z2_gpu = pycuda.gpuarray.to_gpu(CoordZ2.flatten().astype(np.float32))
-#                         image_x1_gpu = pycuda.gpuarray.to_gpu(image_x1.flatten().astype(np.float32))
-#                         image_x2_gpu = pycuda.gpuarray.to_gpu(image_x2.flatten().astype(np.float32))
-#                         image_z1_gpu = pycuda.gpuarray.to_gpu(image_z1.flatten().astype(np.float32))
-#                         image_z2_gpu = pycuda.gpuarray.to_gpu(image_z2.flatten().astype(np.float32))
-#                         proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
-#                         distance_proj_on_y_gpu(dest, drv.In(image), coord_x1_gpu,
-#                                                coord_x2_gpu, coord_z1_gpu, coord_z2_gpu, x_plane_gpu, z_plane_gpu,
-#                                                image_x1_gpu, image_x2_gpu, image_z1_gpu, image_z2_gpu, proj_param_gpu,
-#                                                block=(blockX, blockY, blockZ), grid=(gridX, gridY))
-#
-#                         del coord_x1_gpu, coord_x2_gpu, coord_z1_gpu, coord_z2_gpu, image_x1_gpu, image_x2_gpu, image_z1_gpu, image_z2_gpu, proj_param_gpu
-#                     else:
                     proj += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane, Zplane, image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * intersection_length
 
         else:
@@ -719,18 +739,55 @@ class Forward:
             intersection_slope1 = (Source[0] - DetectorIndex[0, :, :]) / (Source[2] - DetectorIndex[2, :, :])
             intersection_slope2 = (Source[1] - DetectorIndex[1, :, :]) / (Source[2] - DetectorIndex[2, :, :])
             intersection_length = abs(dz) / (cos(atan(intersection_slope1)) * cos(atan(intersection_slope2)))
-            for iz in range(nz):
-                CoordX1 = SlopesU1 * Zplane[iz] + dz / 2 + InterceptsU1
-                CoordX2 = SlopesU2 * Zplane[iz] + dz / 2 + InterceptsU2
-                CoordY1 = SlopesV1 * Zplane[iz] + dz / 2 + InterceptsV1
-                CoordY2 = SlopesV2 * Zplane[iz] + dz / 2 + InterceptsV2
-                image_x1 = floor(CoordX1 - Xplane[0] + dx) / dx
-                image_x2 = floor(CoordX2 - Xplane[0] + dx) / dx
-                image_y1 = floor(CoordY1 - Yplane[0] + dy) / dy
-                image_y2 = floor(CoordY2 - Yplane[0] + dy) / dy
-                if(self.params['GPU']):
-                    pass
+            if(self.params['GPU']):
+                TotalSize = nu * nv * nz
+                if(TotalSize < MAX_THREAD_PER_BLOCK):
+                    blockX = nu * nv * nz
+                    blockY = 1
+                    blockZ = 1
+                    gridX = 1
+                    gridY = 1
                 else:
+                    blockX = 32
+                    blockY = 32
+                    blockZ = 1
+                    GridSize = ceil(TotalSize / (blockX * blockY))
+                    try:
+                        if(GridSize < MAX_GRID_DIM_X):
+                            [gridX, gridY] = Forward._optimalGrid(GridSize)
+                        else:
+                            raise ErrorDescription(6)
+                    except ErrorDescription as e:
+                        print(e)
+                        sys.exit()
+                proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv]).astype(np.float32)
+                slope_x1_gpu = pycuda.gpuarray.to_gpu(SlopesU1.flatten().astype(np.float32))
+                slope_x2_gpu = pycuda.gpuarray.to_gpu(SlopesU2.flatten().astype(np.float32))
+                slope_y1_gpu = pycuda.gpuarray.to_gpu(SlopesV1.flatten().astype(np.float32))
+                slope_y2_gpu = pycuda.gpuarray.to_gpu(SlopesV2.flatten().astype(np.float32))
+                intercept_x1_gpu = pycuda.gpuarray.to_gpu(InterceptsU1.flatten().astype(np.float32))
+                intercept_x2_gpu = pycuda.gpuarray.to_gpu(InterceptsU2.flatten().astype(np.float32))
+                intercept_y1_gpu = pycuda.gpuarray.to_gpu(InterceptsV1.flatten().astype(np.float32))
+                intercept_y2_gpu = pycuda.gpuarray.to_gpu(InterceptsV2.flatten().astype(np.float32))
+                proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
+                distance_proj_on_y_gpu(dest, drv.In(image), slope_x1_gpu, slope_x2_gpu, slope_y1_gpu,
+                                       slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu,
+                                       intercept_y2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu, proj_param_gpu,
+                                       block=(blockX, blockY, blockZ), grid=(gridX, gridY))
+                del slope_x1_gpu, slope_x2_gpu, slope_y1_gpu, slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu, intercept_y2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
+                proj = dest.get().reshape([nv, nu]).astype(np.float32)
+                proj = proj * intersection_length
+                del dest
+            else:
+                for iz in range(nz):
+                    CoordX1 = SlopesU1 * Zplane[iz] + dz / 2 + InterceptsU1
+                    CoordX2 = SlopesU2 * Zplane[iz] + dz / 2 + InterceptsU2
+                    CoordY1 = SlopesV1 * Zplane[iz] + dz / 2 + InterceptsV1
+                    CoordY2 = SlopesV2 * Zplane[iz] + dz / 2 + InterceptsV2
+                    image_x1 = floor(CoordX1 - Xplane[0] + dx) / dx
+                    image_x2 = floor(CoordX2 - Xplane[0] + dx) / dx
+                    image_y1 = floor(CoordY1 - Yplane[0] + dy) / dy
+                    image_y2 = floor(CoordY2 - Yplane[0] + dy) / dy
                     proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane, Yplane, image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * intersection_length
         return proj
     @staticmethod
@@ -801,7 +858,7 @@ class Forward:
                     elif(k == e_index_y):
                         weight1 = (Yplane[k ] - min(CoordY1[i, j], CoordY2[i, j])) / abs(CoordY1[i, j] - CoordY2[i, j])
                     else:
-                        weight1 = abs(dy) / abs(CoordU1[i, j] - CoordU2[i, j])
+                        weight1 = abs(dy) / abs(CoordY1[i, j] - CoordY2[i, j])
                     # if(abs(weight1) - 0 < tol_min):
                     #    weight1 = 0
                     for l in range(int(s_index_z), int(e_index_z) + 1):
@@ -826,7 +883,48 @@ class Forward:
 
     @staticmethod
     def _distance_project_on_z(image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane, Yplane, image_x1, image_X2, image_y1, image_y2, dx, dy, iz):
-        pass
+        tol_min = 1e-6
+        tol_max = 1e7
+        proj = np.zeros(CoordX1.shape, dtype=np.float32)
+        for i in range(CoordX1.shape[0]):
+            for j in range(CoordX1.shape[1]):
+                p_value = 0
+                s_index_x = min(image_x1[i, j], image_x2[i, j])
+                e_index_x = max(image_x1[i, j], image_x2[i, j])
+                s_index_y = min(image_y1[i, j], image_y2[i, j])
+                e_index_y = max(image_y1[i, j], image_y2[i, j])
+                for k in range(int(s_index_x), int(e_index_x) + 1):
+                    if(k < 0 or k > image.shape[0] - 1):
+                        continue
+                    if(s_index_x == e_index_x):
+                        weight1 = 1
+                    elif(k == s_index_x):
+                        weight1 = (Xplane[k + 1] - max(CoordX1[i, j], CoordX2[i, j])) / abs(CoordX1[i, j] - CoordX2[i, j])
+                    elif(k == e_index_x):
+                        weight1 = (min(CoordY1[i, j], CoordY2[i, j]) - Xplane[k ]) / abs(CoordX1[i, j] - CoordX2[i, j])
+                    else:
+                        weight1 = abs(dx) / abs(CoordX1[i, j] - CoordX2[i, j])
+                    # if(abs(weight1) - 0 < tol_min):
+                    #    weight1 = 0
+                    for l in range(int(s_index_y), int(e_index_y) + 1):
+                        if(l < 0 or l > image.shape[1] - 1):
+                            continue
+                        if(s_index_z == e_index_z):
+                            weight2 = 1
+                        elif(l == s_index_y):
+                            weight2 = (max(CoordY1[i, j], CoordY2[i, j]) - Yplane[l + 1]) / abs(CoordY1[i, j] - CoordY2[i, j])
+                        elif(l == e_index_y):
+                            weight2 = (Yplane[l] - min(CoordY1[i, j], CoordY2[i, j])) / abs(CoordY1[i, j] - CoordY2[i, j])
+                        else:
+                            weight2 = abs(dy) / abs(CoordY1[i, j] - CoordY2[i, j])
+                        # print(s_index_z,e_index_z,Zplane[l+1],Zplane[l],CoordZ1[i,j],CoordZ2[i,j])
+                        # if(abs(weight2) < tol_min):
+                        #    weight2 = 0
+                        # print(weight1,weight2)
+                        assert(weight1 > 0 and weight2 > 0 and weight1 <= 1 and weight2 <= 1)
+                        p_value += weight1 * weight2 * image[iz][l][k]
+                proj[i, j] = p_value
+        return proj
     def ray(self):
         nViews = self.params['NumberOfViews']
         [nu, nv] = self.params['NumberOfDetectorPixels']
