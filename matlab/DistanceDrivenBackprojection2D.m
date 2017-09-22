@@ -95,7 +95,7 @@ function bp=backproj(proj,recon_planeX,recon_planeY,angle,SAD,SDD,nd,DetectorPix
                if(k==floor(n_min))
                     bp(j,i)=bp(j,i)+proj(k)*(ceil(n_min)-n_min)/(n_max-n_min);
                elseif(k>floor(n_min) && k<floor(n_max))
-                    bp(j,i)=bp(j,i)+proj(k)*1/(n_max-n_min);
+                    bp(j,i)=bp(j,i)+proj(k)*DetectorPixelSpacing/(n_max-n_min);
                elseif(k==floor(n_max))
                     bp(j,i)=bp(j,i)+proj(k)*(n_max-floor(n_max))/(n_max-n_min);
                else
