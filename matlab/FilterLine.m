@@ -7,7 +7,7 @@ g(x==0)=1/(8*a^2);
 odds= find(mod(x,2)==1);
 g(odds)=-1./(2*pi^2*a^2*x(odds).^2);
 g=g(1:end-1);
-filter=abs(fftshift(fft(g)))*2;
+filter=abs(fftshift(fft(g)));
 w=2*pi*x(1:end-1)./(N-1);
 w=w';
 switch lower(type)
