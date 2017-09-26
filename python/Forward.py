@@ -577,6 +577,7 @@ class Forward:
         [nx, ny, nz] = self.params['NumberOfImage']
         dy = -1 * dy
         dz = -1 * dz
+        dv = -1 * dv
         proj = np.zeros([nv, nu], dtype=np.float32)
         if self.params['GPU']:
             device = drv.Device(0)
@@ -596,7 +597,9 @@ class Forward:
         DetectorBoundaryU2 = np.array([DetectorIndex[0, :, :] + cos(angle) * du / 2, DetectorIndex[1, :, :] + sin(angle) * du / 2, DetectorIndex[2, :, :]])
         DetectorBoundaryV1 = np.array([DetectorIndex[0, :, :] , DetectorIndex[1, :, :] , DetectorIndex[2, :, :] - dv / 2])
         DetectorBoundaryV2 = np.array([DetectorIndex[0, :, :] , DetectorIndex[1, :, :] , DetectorIndex[2, :, :] + dv / 2])
-
+        SDD = sqrt(np.sum((Source - Detector) ** 2))
+        ray_angles = atan(sqrt((DetectorIndex[0, :, :] - Detector[0]) ** 2 + (DetectorIndex[1, :, :] - Detector[1]) ** 2 + (DetectorIndex[2, :, :] - Detector[2]) ** 2) / SDD)
+        ray_normalization = cos(ray_angles)
         if(abs(Source[0] - Detector[0]) >= abs(Source[1] - Detector[1]) and abs(Source[0] - Detector[0]) >= abs(Source[2] - Detector[2])):
             SlopesU1 = (Source[1] - DetectorBoundaryU1[1, :, :]) / (Source[0] - DetectorBoundaryU1[0, :, :])
             InterceptsU1 = -SlopesU1 * Source[0] + Source[1]
@@ -609,6 +612,7 @@ class Forward:
             intersection_slope1 = (Source[1] - DetectorIndex[1, :, :]) / (Source[0] - DetectorIndex[0, :, :])
             intersection_slope2 = (Source[2] - DetectorIndex[2, :, :]) / (Source[0] - DetectorIndex[0, :, :])
             intersection_length = abs(dx) / (cos(atan(intersection_slope1)) * cos(atan(intersection_slope2)))
+            
             if(self.params['GPU']):
                 TotalSize = nu * nv * nx
                 if(TotalSize < MAX_THREAD_PER_BLOCK):
@@ -646,7 +650,7 @@ class Forward:
                                        block=(blockX, blockY, blockZ), grid=(gridX, gridY))
                 del slope_y1_gpu, slope_y2_gpu, slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu, intercept_y2_gpu, intercept_z1_gpu, intercept_z2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
                 proj = dest.get().reshape([nv, nu]).astype(np.float32)
-                proj = proj * intersection_length
+                proj = proj * (intersection_length / ray_normalization)
                 del dest
             else:
                 for ix in range(nx):
@@ -658,7 +662,7 @@ class Forward:
                     image_y2 = floor((CoordY2 - Yplane[0] + 0) / dy)
                     image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                     image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-                    proj += self._distance_project_on_x(self.image, CoordY1, CoordY2, CoordZ1, CoordZ2, Yplane, Zplane, image_y1, image_y2, image_z1, image_z2, dy, dz, ix) * intersection_length
+                    proj += self._distance_project_on_x(self.image, CoordY1, CoordY2, CoordZ1, CoordZ2, Yplane, Zplane, image_y1, image_y2, image_z1, image_z2, dy, dz, ix) * (intersection_length / ray_normalization)
 
 
         elif(abs(Source[1] - Detector[1]) >= abs(Source[0] - Detector[0]) and abs(Source[1] - Detector[1]) >= abs(Source[2] - Detector[2])):
@@ -712,7 +716,7 @@ class Forward:
                                        block=(blockX, blockY, blockZ), grid=(gridX, gridY))
                 del slope_x1_gpu, slope_x2_gpu, slope_z1_gpu, slope_z2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_z1_gpu, intercept_z2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
                 proj = dest.get().reshape([nv, nu]).astype(np.float32)
-                proj = proj * intersection_length
+                proj = proj * (intersection_length / ray_normalization)
                 del dest
             else:
                 for iy in range(ny):
@@ -725,7 +729,7 @@ class Forward:
                     image_x2 = floor((CoordX2 - Xplane[0] + 0) / dx)
                     image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                     image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-                    proj += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane, Zplane, image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * intersection_length
+                    proj += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane, Zplane, image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * (intersection_length / ray_normalization)
 
         else:
             SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[2] - DetectorBoundaryU1[2, :, :])
@@ -776,7 +780,7 @@ class Forward:
                                        block=(blockX, blockY, blockZ), grid=(gridX, gridY))
                 del slope_x1_gpu, slope_x2_gpu, slope_y1_gpu, slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu, intercept_y2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
                 proj = dest.get().reshape([nv, nu]).astype(np.float32)
-                proj = proj * intersection_length
+                proj = proj * (intersection_length / ray_normalization)
                 del dest
             else:
                 for iz in range(nz):
@@ -788,7 +792,7 @@ class Forward:
                     image_x2 = floor(CoordX2 - Xplane[0] + dx) / dx
                     image_y1 = floor(CoordY1 - Yplane[0] + dy) / dy
                     image_y2 = floor(CoordY2 - Yplane[0] + dy) / dy
-                    proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane, Yplane, image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * intersection_length
+                    proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane, Yplane, image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * (intersection_length / ray_normalization)
         return proj
     @staticmethod
     def _distance_project_on_y(image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane, Zplane, image_x1, image_x2, image_z1, image_z2, dx, dz, iy):
