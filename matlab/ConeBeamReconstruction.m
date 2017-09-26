@@ -19,8 +19,7 @@ p=p*DetectorPixelHeight;
 ZeroPaddedLength=2^nextpow2(2*(nx-1));
 deltaS=DetectorPixelWidth*R/(D+R);
 gpuFlag=0;
-cutoff=0.5;
-filter=FilterLine(ZeroPaddedLength+1,deltaS,'hann',cutoff);
+filter=FilterLine(ZeroPaddedLength+1,deltaS,FilterType,cutoff);
 Recon=zeros(ReconX,ReconY,ReconZ);
 DetectorSize=[nx*DetectorPixelWidth,ny*DetectorPixelHeight];
 fov=2*R*sin(atan(DetectorSize(1)/2/(D+R)));
@@ -62,8 +61,8 @@ for i=1:NumberOfViews
             Recon(:,:,l)=Recon(:,:,l)+InterpW.*tmp*dtheta;
         end
     else
-%         for l=256:256
-        for l=1:ReconZ
+        for l=128:128
+%         for l=1:ReconZ
             InterpX=(R.*t)./(R-s);
             InterpY=(R.*z(l))./(R-s);
             InterpW=(R^2)./(R-s).^2;
