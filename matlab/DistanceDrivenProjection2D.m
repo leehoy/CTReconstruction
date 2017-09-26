@@ -77,8 +77,8 @@ for angle_index=1:nTheta
             intercept1=-k1*SourceY+SourceX;
             k2=(SourceX-DetectorBoundary2(1))/(SourceY-DetectorBoundary2(2)); % slope of line between source and detector boundray
             intercept2=-k2*SourceY+SourceX;
-            ray_angle=atand(sqrt(sum((DetectorIndex(:,detector_index)-[DetectorX;DetectorY]).^2))/SDD);
-            ray_normalization=cosd(ray_angle);
+%             ray_angle=atand(sqrt(sum((DetectorIndex(:,detector_index)-[DetectorX;DetectorY]).^2))/SDD);
+%             ray_normalization=cosd(ray_angle);
             detector_value=0;
             for image_row_index=1:ny
                 coord1=k1*(Yplane(image_row_index)+dy/2)+intercept1; % x coordinate of detector pixel onto image pixel
@@ -215,7 +215,8 @@ for angle_index=1:nTheta
                     end
                 end
             end
-            proj(detector_index,angle_index)=detector_value/ray_normalization;
+            proj(detector_index,angle_index)=detector_value;
+%             proj(detector_index,angle_index)=detector_value/ray_normalization;
         else
             DetectorBoundary1=[DetectorIndex(1,detector_index)-cos(theta(angle_index))*...
                 DetectorPixelSize/2,DetectorIndex(2,detector_index)-sin(theta(angle_index))*...
@@ -227,8 +228,8 @@ for angle_index=1:nTheta
             intercept1=-k1*SourceX+SourceY;
             k2=(SourceY-DetectorBoundary2(2))/(SourceX-DetectorBoundary2(1)); % slope of line between source and detector boundray
             intercept2=-k2*SourceX+SourceY;
-            ray_angle=atand(sqrt(sum((DetectorIndex(:,detector_index)-[DetectorX;DetectorY]).^2))/SDD);
-            ray_normalization=cosd(ray_angle);
+%             ray_angle=atand(sqrt(sum((DetectorIndex(:,detector_index)-[DetectorX;DetectorY]).^2))/SDD);
+%             ray_normalization=cosd(ray_angle);
             detector_value=0;
             for image_col_index=1:nx
                 coord1=k1*(Xplane(image_col_index)+dx/2)+intercept1; % y coordinate of detector pixel onto image pixel
@@ -352,7 +353,8 @@ for angle_index=1:nTheta
                     end
                 end
             end
-            proj(detector_index,angle_index)=detector_value/ray_normalization;
+            proj(detector_index,angle_index)=detector_value;
+%             proj(detector_index,angle_index)=detector_value/ray_normalization;
         end
     end
 end
