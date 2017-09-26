@@ -1,4 +1,6 @@
-filepath='Proj_distance3D_2.dat';
+% filepath='Proj_distance3D_2.dat';
+% filepath='proj_distance_360.dat';
+filepath='proj_distance_360_2.dat';
 params=struct('SourceToAxis',[],'SourceToDetector',[]','cutoff',[],'FilterType',[],...
     'DetectorPixelSpacing',[],'ReconSpacingX',[],'ReconSpacingY',[],'nx',[],'ny',[],...
     'nu',[],'nv',[],'nw',[]);
@@ -19,9 +21,9 @@ params.ny=256;
 params.nz=256;
 params.ReconSpacingX=0.5;
 params.ReconSpacingY=0.5;
-params.ReconSpacingZ=0.5    ;
-params.FilterType='hann'; % filter type can be ram-lak, shepp-logan, cosine, hammin, and hann
-params.cutoff=0.5; % cutoff must be posed between 0~0.5
+params.ReconSpacingZ=0.5;
+params.FilterType='ram-lak'; % filter type can be ram-lak, shepp-logan, cosine, hamming, and hann
+params.cutoff=1; % cutoff must be posed between 0~1
 dtype='float32';
 
 %% Reconstruction method
@@ -47,3 +49,7 @@ else
     fprintf('Error! The selected method is not implemented.\n');
 end
 toc
+figure;plot(ph3d(128,:,128));
+hold on
+recon1=recon(:,:,128)';
+plot(recon1(128,:));
