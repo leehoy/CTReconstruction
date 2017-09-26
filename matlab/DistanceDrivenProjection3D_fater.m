@@ -89,9 +89,9 @@ for angle_index=1:nTheta
             DetectorIndex(3,:,:)-DetectorPixelSizeV/2];
     DetectorBoundaryV2=[DetectorIndex(1,:,:);DetectorIndex(2,:,:);...
             DetectorIndex(3,:,:)+DetectorPixelSizeV/2];
-    ray_angles=atand(sqrt(((DetectorIndex(1,:,:)-DetectorX).^2+...
-            (DetectorIndex(2,:,:)-DetectorY).^2+(DetectorIndex(3,:,:)-DetectorZ).^2))/SDD);
-    ray_normalization=cosd(squeeze(ray_angles));
+%     ray_angles=atand(sqrt(((DetectorIndex(1,:,:)-DetectorX).^2+...
+%             (DetectorIndex(2,:,:)-DetectorY).^2+(DetectorIndex(3,:,:)-DetectorZ).^2))/SDD);
+%     ray_normalization=cosd(squeeze(ray_angles));
     if(abs(SourceY-DetectorY)>=abs(SourceX-DetectorX) && abs(SourceY-DetectorY)>=abs(SourceZ-DetectorZ))
         SlopesU1=(SourceX-DetectorBoundaryU1(1,:,:))./(SourceY-DetectorBoundaryU1(2,:,:));
         InterceptU1=-SlopesU1*SourceY+SourceX;
@@ -116,7 +116,7 @@ for angle_index=1:nTheta
             proj(:,:,angle_index)=proj(:,:,angle_index)+Project_on_Y(ph,...
                 coordX1,coordX2,coordZ1,coordZ2,Xplane,Zplane,image_x_index1,...
                 image_x_index2,image_z_index1,image_z_index2,dx,dz,iy).*...
-                intersection_length./ray_normalization;
+                intersection_length;%./ray_normalization;
         end
     elseif(abs(SourceX-DetectorX)>=abs(SourceY-DetectorY) && abs(SourceX-DetectorX)>=abs(SourceZ-DetectorZ))
         SlopesU1=(SourceY-DetectorBoundaryU1(2,:,:))./(SourceX-DetectorBoundaryU1(1,:,:));
@@ -142,7 +142,7 @@ for angle_index=1:nTheta
             proj(:,:,angle_index)=proj(:,:,angle_index)+Project_on_X(ph,...
                 coordY1,coordY2,coordZ1,coordZ2,Yplane,Zplane,image_y_index1,...
                 image_y_index2,image_z_index1,image_z_index2,dx,dz,ix).*...
-                intersection_length./ray_normalization;
+                intersection_length;%./ray_normalization;
         end
     else
         SlopesU1=(SourceX-DetectorBoundaryU1(1,:,:))./(SourceZ-DetectorBoundaryU1(3,:,:));
@@ -168,7 +168,7 @@ for angle_index=1:nTheta
             proj(:,:,angle_index)=proj(:,:,angle_index)+Project_on_Z(ph,...
                 coordX1,coordX2,coordY1,coordY2,Xplane,Yplane,image_x_index1,...
                 image_x_index2,image_y_index1,image_y_index2,dx,dy,iz).*...
-                intersection_length./ray_normalization;
+                intersection_length;%./ray_normalization;
         end
     end
 %     fprintf('elapsed time: %f\n',cputime-start_time);
