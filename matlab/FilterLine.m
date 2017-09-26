@@ -27,7 +27,6 @@ switch lower(type)
     otherwise
         error('Wrong filter selection')
 end
-filter(abs(w)>pi*cutoff)=0;
+filter(abs(w)>pi*cutoff/(2*a))=0;
+% filter=filter*0.5;
 end
-
- 
