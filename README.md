@@ -6,11 +6,12 @@
 - Cone beam reconstruction
 - Equiangular fan-beam reconstruction
 - Equispace fan-beam reconstruction  
-- Forward-projection code
-- Back-projection functions
+- Forward-projection code(distance-driven on GPU)
+- Back-projection functions(distance-driven on GPU)
 
 ### Will be added ###
 - Helical reconstruction algorithm
-- SART
+- Iterative reconstruction algorithm
+- Ray-driven forward and backward projection
 
 #### References ####
