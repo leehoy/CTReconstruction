@@ -49,7 +49,3 @@ else
     fprintf('Error! The selected method is not implemented.\n');
 end
 toc
-figure;plot(ph3d(128,:,128));
-hold on
-recon1=recon(:,:,128)';
-plot(recon1(128,:));
