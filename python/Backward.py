@@ -12,24 +12,8 @@ import numpy.matlib
 import pycuda.gpuarray
 from math import ceil
 import time
-# function alias starts
-sin = np.sin
-cos = np.cos
-atan = np.arctan
-tan = np.tan
-sinc = np.sinc
-sqrt = np.sqrt
-repmat = numpy.matlib.repmat
-ceil = np.ceil
-pi = np.pi
-floor = np.floor
-fft = np.fft.fft
-ifft = np.fft.ifft
-fftshift = np.fft.fftshift
-ifftshift = np.fft.ifftshift
-real = np.real
-log2 = np.log2
-# function alias ends
+from builtins import staticmethod
+
 # GPU function definition starts
 mod = SourceModule("""
 #include <stdio.h>
@@ -557,7 +541,7 @@ class Backward:
     def LoadFile(filename, image_size, dtype=np.float32):
         image = np.fromfile(filename, dtype=dtype).reshape(image_size)
         return image
-    
+
     def SaveProj(self, filename):
         self.proj.tofile(filename, sep='', format='')
     def SaveRecon(self, filename):
@@ -719,7 +703,7 @@ class Backward:
                 recon += self.ray(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
             # print('time taken: ' + str(time.time() - start_time) + '\n')
         self.recon = recon
-        
+
     @staticmethod
     def filter_proj(proj, ki, p, params):
         [du, dv] = params['DetectorPixelSize']
@@ -730,7 +714,7 @@ class Backward:
         # print(ki.shape, p.shape)
         [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
         weight = R / (sqrt(R ** 2 + kk ** 2 + pp ** 2))
-        
+
         deltaS = du * R / (R + D)
         filter = Backward.Filter(
             ZeroPaddedLength + 1, du * R / (D + R), params['FilterType'], params['cutoff'])
@@ -740,7 +724,7 @@ class Backward:
             tmp = real(ifft(
                 ifftshift(filter * fftshift(fft(weightd_proj[k, :], ZeroPaddedLength)))))
             Q[k, :] = tmp[0:nu] * deltaS
-            
+
         return Q
     def distance_backproj(self, proj, DetectorIndex, angle, Xpixel, Ypixel, Zpixel, ki, p):
         [nu, nv] = self.params['NumberOfDetectorPixels']
@@ -784,7 +768,7 @@ class Backward:
             z_pixel_gpu = pycuda.gpuarray.to_gpu(Zpixel.astype(np.float32))
             u_plane_gpu = pycuda.gpuarray.to_gpu(ki.astype(np.float32))
             v_plane_gpu = pycuda.gpuarray.to_gpu(p.astype(np.float32))
-            
+
         if(rotation_vector == [0, 0, 1]):
             start_time = time.time()
             if(self.params['GPU']):
@@ -808,10 +792,10 @@ class Backward:
                     except ErrorDescription as e:
                         print(e)
                         sys.exit()
-                
+
                 recon_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1], Detector[2], angle, R]).astype(np.float32)
                 recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param)
-                
+
                 distance_backproj_about_z_gpu(dest, drv.In(Q), x_pixel_gpu, y_pixel_gpu,
                                  z_pixel_gpu, u_plane_gpu, v_plane_gpu, recon_param_gpu,
                                       block=(blockX, blockY, blockZ), grid=(gridX, gridY))
@@ -825,6 +809,89 @@ class Backward:
         elif(rotation_vector == [1, 0, 0]):
             pass
 
+        return recon
+    @staticmethod
+    def _distance_backproj_arb(proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle1, angle2, params):
+        tol_min = 1e-6
+        [nu, nv] = params['NumberOfDetectorPixels']
+        [du, dv] = params['DetectorPixelSize']
+        [dx, dy, dz] = params['ImagePixelSpacing']
+        [nx, ny, nz] = params['NumberOfImage']
+        dx = -1 * dx
+        dy = -1 * dy
+        dv = -1 * dv
+        # angle1: rotation angle between point and X-axis
+        # angle2: rotation angle between point and XY-palne
+        Source = np.array(params['SourceInit'])
+        Detector = np.array(params['DetectorInit'])
+        R = sqrt(np.sum((np.array(Source) - np.array(params['PhantomCenter'])) ** 2))
+        recon_pixelsX = Xpixel
+        recon_pixelsY = Ypixel
+        recon_pixelsZ = Zpixel
+        recon = np.zeros([nz, ny, nx], dtype=np.float32)
+        fx = lambda x, y, z:x * cos(angle2) * cos(angle1) - y * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * cos(atan(y / x)) + z * sin(angle2) * sin(angle1) * cos(atan(y / x))
+        fy = lambda x, y, z:y * cos(angle2) * cos(angle1) + x * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * sin(atan(y / x)) - z * sin(angle2) * sin(angle1) * cos(atan(y / x))
+        fz = lambda x, y, z:z * cos(angle2) + sqrt(x ** 2 + y ** 2) * sin(angle1)
+        for i in range(127, 128):
+            for j in range(ny):
+                for k in range(nx):
+#                     l = sqrt(recon_pixelsX[k] ** 2 + recon_pixelsY[j] ** 2 + recon_pixelsZ[i] ** 2)
+                    xc = fx(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+                    yc = fy(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+                    zc = fz(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+#                     yc = -(recon_pixelsX[k]) * sin(angle) + (recon_pixelsY[j]) * cos(angle)
+                    x1 = (xc + dx / 2) * cos(angle) + (recon_pixelsY[j] + dy / 2) * sin(angle)
+                    y1 = -(recon_pixelsX[k] + dx / 2) * sin(angle) + (recon_pixelsY[j] + dy / 2) * cos(angle)
+                    slope1 = (Source[0] - x1) / (Source[1] - y1)
+                    x2 = (recon_pixelsX[k] - dx / 2) * cos(angle) + (recon_pixelsY[j] - dy / 2) * sin(angle)
+                    y2 = -(recon_pixelsX[k] - dx / 2) * sin(angle) + (recon_pixelsY[j] - dy / 2) * cos(angle)
+                    slope2 = (Source[0] - x2) / (Source[1] - y2)
+                    x3 = (recon_pixelsX[k] + dx / 2) * cos(angle) + (recon_pixelsY[j] - dy / 2) * sin(angle)
+                    y3 = -(recon_pixelsX[k] + dx / 2) * sin(angle) + (recon_pixelsY[j] - dy / 2) * cos(angle)
+                    slope3 = (Source[0] - x3) / (Source[1] - y3)
+                    x4 = (recon_pixelsX[k] - dx / 2) * cos(angle) + (recon_pixelsY[j] + dy / 2) * sin(angle)
+                    y4 = -(recon_pixelsX[k] - dx / 2) * sin(angle) + (recon_pixelsY[j] + dy / 2) * cos(angle)
+                    slope4 = (Source[0] - x4) / (Source[1] - y4)
+                    slopes_u = [slope1, slope2, slope3, slope4]
+                    slope_l = min(slopes_u)
+                    slope_r = max(slopes_u)
+                    coord_u1 = (slope_l * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    coord_u2 = (slope_r * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    u_l = floor((coord_u1 - Uplane[0]) / du)
+                    u_r = floor((coord_u2 - Uplane[0]) / du)
+                    s_index_u = int(min(u_l, u_r))
+                    e_index_u = int(max(u_l, u_r))
+
+                    z1 = recon_pixelsZ[i] - dz / 2
+                    z2 = recon_pixelsZ[i] + dz / 2
+                    slopes_v = [(Source[2] - z1) / (Source[1] - yc), (Source[2] - z2) / (Source[1] - yc)]
+                    slope_t = min(slopes_v)
+                    slope_b = max(slopes_v)
+                    coord_v1 = (slope_t * Detector[2]) + (Source[2] - slope_t * Source[1])
+                    coord_v2 = (slope_b * Detector[2]) + (Source[2] - slope_b * Source[1])
+                    v_l = floor((coord_v1 - Vplane[0]) / dv)
+                    v_r = floor((coord_v2 - Vplane[0]) / dv)
+                    s_index_v = int(min(v_l, v_r))
+                    e_index_v = int(min(v_l, v_r))
+                    for l in range(s_index_v, e_index_v + 1):
+                        if(s_index_v == e_index_v):
+                            weight1 = 1.0
+                        elif(l == s_index_v):
+                            weight1 = (max(coord_v1, coord_v2) - Vplane[l + 1]) / abs(coord_v1 - coord_v2)
+                        elif(l == e_index_v):
+                            weight1 = (Vplane[l] - min(coord_v1, coord_v2)) / abs(coord_v1 - coord_v2)
+                        else:
+                            weight1 = abs(dv) / abs(coord_v1 - coord_v2)
+                        for m in range(s_index_u, e_index_u + 1):
+                            if(s_index_u == e_index_u):
+                                weight2 = 1.0
+                            elif(m == s_index_u):
+                                weight2 = (Uplane[k + 1] - min(coord_u1, coord_u2)) / abs(coord_u1 - coord_u2)
+                            elif(m == e_index_u):
+                                weight2 = (max(coord_u1, coord_u2) - Uplane[k]) / abs(coord_u1 - coord_u2)
+                            else:
+                                weight2 = abs(du) / abs(coord_u1 - coord_u2)
+                            recon[i][j][k] += proj[l][m] * weight1 * weight2 * (R ** 2) / (R - yc) ** 2
         return recon
     @staticmethod
     def _distance_backproj_about_z(proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle, params):
@@ -853,12 +920,12 @@ class Backward:
 #         reconX_c2 = (reconX - dx / 2) * cos(angle) + (reconY - dy / 2) * sin(angle)
 #         reconX_c3 = (reconX + dx / 2) * cos(angle) + (reconY - dy / 2) * sin(angle)
 #         reconX_c4 = (reconX - dx / 2) * cos(angle) + (reconY + dy / 2) * sin(angle)
-#         
+#
 #         reconY_c1 = -(reconX + dx / 2) * sin(angle) + (reconY + dy / 2) * cos(angle)
 #         reconY_c2 = -(reconX - dx / 2) * sin(angle) + (reconY - dy / 2) * cos(angle)
 #         reconY_c3 = -(reconX + dx / 2) * sin(angle) + (reconY - dy / 2) * cos(angle)
 #         reconY_c4 = -(reconX - dx / 2) * sin(angle) + (reconY + dy / 2) * cos(angle)
-#         
+#
 #         SlopeU_c1 = (Source[0] - reconX_c1) / (Source[1] - reconY_c1)
 #         SlopeU_c2 = (Source[0] - reconX_c2) / (Source[1] - reconY_c2)
 #         SlopeU_c3 = (Source[0] - reconX_c3) / (Source[1] - reconY_c3)
@@ -870,17 +937,17 @@ class Backward:
                     yc = -(recon_pixelsX[k]) * sin(angle) + (recon_pixelsY[j]) * cos(angle)
                     x1 = (recon_pixelsX[k] + dx / 2) * cos(angle) + (recon_pixelsY[j] + dy / 2) * sin(angle)
                     y1 = -(recon_pixelsX[k] + dx / 2) * sin(angle) + (recon_pixelsY[j] + dy / 2) * cos(angle)
-                    slope1 = (Source[0] - x1) / (Source[1] - y1) 
+                    slope1 = (Source[0] - x1) / (Source[1] - y1)
                     x2 = (recon_pixelsX[k] - dx / 2) * cos(angle) + (recon_pixelsY[j] - dy / 2) * sin(angle)
                     y2 = -(recon_pixelsX[k] - dx / 2) * sin(angle) + (recon_pixelsY[j] - dy / 2) * cos(angle)
-                    slope2 = (Source[0] - x2) / (Source[1] - y2) 
+                    slope2 = (Source[0] - x2) / (Source[1] - y2)
                     x3 = (recon_pixelsX[k] + dx / 2) * cos(angle) + (recon_pixelsY[j] - dy / 2) * sin(angle)
                     y3 = -(recon_pixelsX[k] + dx / 2) * sin(angle) + (recon_pixelsY[j] - dy / 2) * cos(angle)
-                    slope3 = (Source[0] - x3) / (Source[1] - y3) 
+                    slope3 = (Source[0] - x3) / (Source[1] - y3)
                     x4 = (recon_pixelsX[k] - dx / 2) * cos(angle) + (recon_pixelsY[j] + dy / 2) * sin(angle)
                     y4 = -(recon_pixelsX[k] - dx / 2) * sin(angle) + (recon_pixelsY[j] + dy / 2) * cos(angle)
                     slope4 = (Source[0] - x4) / (Source[1] - y4)
-                    slopes_u = [slope1, slope2, slope3, slope4] 
+                    slopes_u = [slope1, slope2, slope3, slope4]
                     slope_l = min(slopes_u)
                     slope_r = max(slopes_u)
                     coord_u1 = (slope_l * Detector[1]) + (Source[0] - slope_r * Source[1])
@@ -889,7 +956,7 @@ class Backward:
                     u_r = floor((coord_u2 - Uplane[0]) / du)
                     s_index_u = int(min(u_l, u_r))
                     e_index_u = int(max(u_l, u_r))
-                    
+
                     z1 = recon_pixelsZ[i] - dz / 2
                     z2 = recon_pixelsZ[i] + dz / 2
                     slopes_v = [(Source[2] - z1) / (Source[1] - yc), (Source[2] - z2) / (Source[1] - yc)]
