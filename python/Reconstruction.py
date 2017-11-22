@@ -12,6 +12,7 @@ import numpy.matlib
 import pycuda.gpuarray
 from math import ceil
 import time
+from GPUFuncs import *
 # function alias starts
 sin = np.sin
 cos = np.cos
@@ -24,7 +25,7 @@ ceil = np.ceil
 pi = np.pi
 floor = np.floor
 # function alias ends
-
+mod = DefineGPUFuns()
 class Reconstruction(object):
 
     def __init__(self, filename, params):
@@ -258,7 +259,8 @@ class Reconstruction(object):
             attrs = device.get_attributes()
             MAX_THREAD_PER_BLOCK = attrs[pycuda._driver.device_attribute.MAX_THREADS_PER_BLOCK]
             MAX_GRID_DIM_X = attrs[pycuda._driver.device_attribute.MAX_GRID_DIM_X]
-            distance_backproj_about_z_gpu = mod.get_function("distance_backproj_about_z")
+#             distance_backproj_about_z_gpu = mod.get_function("distance_backproj_about_z")
+            distance_backproj_arb = mod.get_function("distance_backproj_arb")
     #             distance_proj_on_y_gpu = mod.get_function("distance_backproject_on_y2")
     #             distance_proj_on_x_gpu = mod.get_function("distance_project_on_x2")
     #             distance_proj_on_z_gpu = mod.get_function("distance_project_on_z2")
@@ -271,46 +273,163 @@ class Reconstruction(object):
             u_plane_gpu = pycuda.gpuarray.to_gpu(ki.astype(np.float32))
             v_plane_gpu = pycuda.gpuarray.to_gpu(p.astype(np.float32))
 
-        if(rotation_vector == [0, 0, 1]):
-            start_time = time.time()
-            if(self.params['GPU']):
-                TotalSize = nx * ny * nz
-                if(TotalSize < MAX_THREAD_PER_BLOCK):
-                    blockX = nx * ny * nz
-                    blockY = 1
-                    blockZ = 1
-                    gridX = 1
-                    gridY = 1
-                else:
-                    blockX = 32
-                    blockY = 32
-                    blockZ = 1
-                    GridSize = ceil(TotalSize / (blockX * blockY))
-                    try:
-                        if(GridSize < MAX_GRID_DIM_X):
-                            [gridX, gridY] = Backward._optimalGrid(GridSize)
-                        else:
-                            raise ErrorDescription(6)
-                    except ErrorDescription as e:
-                        print(e)
-                        sys.exit()
-
-                recon_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1], Detector[2], angle, R]).astype(np.float32)
-                recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param)
-
-                distance_backproj_about_z_gpu(dest, drv.In(Q), x_pixel_gpu, y_pixel_gpu,
-                                 z_pixel_gpu, u_plane_gpu, v_plane_gpu, recon_param_gpu,
-                                      block=(blockX, blockY, blockZ), grid=(gridX, gridY))
-                del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
-                recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
-                del dest
+        start_time = time.time()
+        if(self.params['GPU']):
+            TotalSize = nx * ny * nz
+            if(TotalSize < MAX_THREAD_PER_BLOCK):
+                blockX = nx * ny * nz
+                blockY = 1
+                blockZ = 1
+                gridX = 1
+                gridY = 1
             else:
-                recon = self._distance_backproj_about_z(Q, Xpixel, Ypixel, Zpixel, ki, p, angle, self.params)  # * intersection_length
-        elif(rotation_vector == [0, 1, 0]):
-            pass
-        elif(rotation_vector == [1, 0, 0]):
-            pass
+                blockX = 32
+                blockY = 32
+                blockZ = 1
+                GridSize = ceil(TotalSize / (blockX * blockY))
+                try:
+                    if(GridSize < MAX_GRID_DIM_X):
+                        [gridX, gridY] = Backward._optimalGrid(GridSize)
+                    else:
+                        raise ErrorDescription(6)
+                except ErrorDescription as e:
+                    print(e)
+                    sys.exit()
 
+            recon_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1], Detector[2], angle, 0.0, R]).astype(np.float32)
+            recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param)
+
+            distance_backproj_arb(dest, drv.In(Q), x_pixel_gpu, y_pixel_gpu,
+                             z_pixel_gpu, u_plane_gpu, v_plane_gpu, recon_param_gpu,
+                                  block=(blockX, blockY, blockZ), grid=(gridX, gridY))
+            del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
+            recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
+            del dest
+        else:
+            recon = self._distance_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle, 0.0, self.params)  # * intersection_length
+
+        return recon
+    @staticmethod
+    def _distance_backproj_arb(proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle1, angle2, params):
+        tol_min = 1e-6
+        [nu, nv] = params['NumberOfDetectorPixels']
+        [du, dv] = params['DetectorPixelSize']
+        [dx, dy, dz] = params['ImagePixelSpacing']
+        [nx, ny, nz] = params['NumberOfImage']
+        dx = -1 * dx
+        dy = -1 * dy
+        dv = -1 * dv
+        # angle1: rotation angle between point and X-axis
+        # angle2: rotation angle between point and XY-palne
+        Source = np.array(params['SourceInit'])
+        Detector = np.array(params['DetectorInit'])
+        R = sqrt(np.sum((np.array(Source) - np.array(params['PhantomCenter'])) ** 2))
+        recon_pixelsX = Xpixel
+        recon_pixelsY = Ypixel
+        recon_pixelsZ = Zpixel
+        recon = np.zeros([nz, ny, nx], dtype=np.float32)
+        f_angle = lambda x, y: atan(x / y) if y != 0 else atan(0) if x == 0 else -pi / 2 if x < 0 else pi / 2
+        fx = lambda x, y, z:x * cos(angle2) * cos(angle1) + y * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * sin(f_angle(x, y)) - z * sin(angle2) * sin(angle1) * cos(f_angle(x, y))
+        fy = lambda x, y, z:y * cos(angle2) * cos(angle1) - x * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * cos(f_angle(x, y)) + z * sin(angle2) * sin(angle1) * sin(f_angle(x, y))
+        fz = lambda x, y, z:z * cos(angle2) + sqrt(x ** 2 + y ** 2) * sin(angle2)
+        for i in range(nz):
+            for j in range(ny):
+                for k in range(nx):
+#                     l = sqrt(recon_pixelsX[k] ** 2 + recon_pixelsY[j] ** 2 + recon_pixelsZ[i] ** 2)
+                    xc = fx(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+                    yc = fy(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+                    zc = fz(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+#                     yc = -(recon_pixelsX[k]) * sin(angle) + (recon_pixelsY[j]) * cos(angle)
+                    x1 = fx((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
+                    y1 = fy((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
+                    z1 = fz((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
+                    
+                    x2 = fx((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
+                    y2 = fy((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
+                    z2 = fz((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
+                    
+                    x3 = fx((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] - dz / 2)
+                    y3 = fy((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] - dz / 2)
+                    z3 = fz((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] - dz / 2)
+                    
+                    x4 = fx((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] - dz / 2)
+                    y4 = fy((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] - dz / 2)
+                    z4 = fz((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] - dz / 2)
+                    
+                    x5 = fx((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] + dz / 2)
+                    y5 = fy((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] + dz / 2)
+                    z5 = fz((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] + dz / 2)
+                    
+                    x6 = fx((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] + dz / 2)
+                    y6 = fy((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] + dz / 2)
+                    z6 = fz((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] + dz / 2)
+                    
+                    x7 = fx((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] + dz / 2)
+                    y7 = fy((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] + dz / 2)
+                    z7 = fz((recon_pixelsX[k] + dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] + dz / 2)
+                    
+                    x8 = fx((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] + dz / 2)
+                    y8 = fy((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] + dz / 2)
+                    z8 = fz((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] + dy / 2), recon_pixelsZ[i] + dz / 2)
+                    
+                    slope_u1 = (Source[0] - x1) / (Source[1] - y1)
+                    slope_u2 = (Source[0] - x2) / (Source[1] - y2)
+                    slope_u3 = (Source[0] - x3) / (Source[1] - y3)
+                    slope_u4 = (Source[0] - x4) / (Source[1] - y4)
+                    slope_u5 = (Source[0] - x5) / (Source[1] - y5)
+                    slope_u6 = (Source[0] - x6) / (Source[1] - y6)
+                    slope_u7 = (Source[0] - x7) / (Source[1] - y7)
+                    slope_u8 = (Source[0] - x8) / (Source[1] - y8)
+                    slopes_u = [slope_u1, slope_u2, slope_u3, slope_u4, slope_u5, slope_u6, slope_u7, slope_u8]
+                    slope_l = min(slopes_u)
+                    slope_r = max(slopes_u)
+                    coord_u1 = (slope_l * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    coord_u2 = (slope_r * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    u_l = floor((coord_u1 - Uplane[0]) / du)
+                    u_r = floor((coord_u2 - Uplane[0]) / du)
+                    s_index_u = int(min(u_l, u_r))
+                    e_index_u = int(max(u_l, u_r))
+
+                    slope_v1 = (Source[2] - z1) / (Source[1] - y1)
+                    slope_v2 = (Source[2] - z2) / (Source[1] - y2)
+                    slope_v3 = (Source[2] - z3) / (Source[1] - y3)
+                    slope_v4 = (Source[2] - z4) / (Source[1] - y4)
+                    slope_v5 = (Source[2] - z5) / (Source[1] - y5)
+                    slope_v6 = (Source[2] - z6) / (Source[1] - y6)
+                    slope_v7 = (Source[2] - z7) / (Source[1] - y7)
+                    slope_v8 = (Source[2] - z8) / (Source[1] - y8)
+                    slopes_v = [slope_v1, slope_v2, slope_v3, slope_v4, slope_v5, slope_v6, slope_v7, slope_v8]
+                    slope_t = min(slopes_v)
+                    slope_b = max(slopes_v)
+                    coord_v1 = (slope_t * Detector[2]) + (Source[2] - slope_t * Source[1])
+                    coord_v2 = (slope_b * Detector[2]) + (Source[2] - slope_b * Source[1])
+                    v_l = floor((coord_v1 - Vplane[0]) / dv)
+                    v_r = floor((coord_v2 - Vplane[0]) / dv)
+                    s_index_v = int(min(v_l, v_r))
+                    e_index_v = int(min(v_l, v_r))
+                    for l in range(s_index_v, e_index_v + 1):
+                        if(l < 0 or l > nu):
+                            continue
+                        if(s_index_v == e_index_v):
+                            weight1 = 1.0
+                        elif(l == s_index_v):
+                            weight1 = (max(coord_v1, coord_v2) - Vplane[l + 1]) / abs(coord_v1 - coord_v2)
+                        elif(l == e_index_v):
+                            weight1 = (Vplane[l] - min(coord_v1, coord_v2)) / abs(coord_v1 - coord_v2)
+                        else:
+                            weight1 = abs(dv) / abs(coord_v1 - coord_v2)
+                        for m in range(s_index_u, e_index_u + 1):
+                            if(m < 0 or m > nv):
+                                continue
+                            if(s_index_u == e_index_u):
+                                weight2 = 1.0
+                            elif(m == s_index_u):
+                                weight2 = (Uplane[k + 1] - min(coord_u1, coord_u2)) / abs(coord_u1 - coord_u2)
+                            elif(m == e_index_u):
+                                weight2 = (max(coord_u1, coord_u2) - Uplane[k]) / abs(coord_u1 - coord_u2)
+                            else:
+                                weight2 = abs(du) / abs(coord_u1 - coord_u2)
+                            recon[i][j][k] += proj[l][m] * weight1 * weight2 * (R ** 2) / (R - yc) ** 2
         return recon
     @staticmethod
     def _distance_backproj_about_z(proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle, params):
@@ -350,7 +469,7 @@ class Reconstruction(object):
 #         SlopeU_c3 = (Source[0] - reconX_c3) / (Source[1] - reconY_c3)
 #         SlopeU_c4 = (Source[0] - reconX_c4) / (Source[1] - reconY_c4)
 #         [reconZ, reconY] = np.meshgrid
-        for i in range(127, 128):
+        for i in range(nz):
             for j in range(ny):
                 for k in range(nx):
                     yc = -(recon_pixelsX[k]) * sin(angle) + (recon_pixelsY[j]) * cos(angle)

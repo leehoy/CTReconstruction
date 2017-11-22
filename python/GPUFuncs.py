@@ -489,7 +489,156 @@ def DefineGPUFuns():
         }
     }
     
-    
+    __device__ float f_angle(float x,float y){
+    float angle;
+    if(y!=0){
+        angle=atan2f(x,y);
+    }else if(fabs(x)<0.000001){
+        angle=0;
+    }else if(x<0){
+        angle=-3.14159265359/2.0;
+    }else if(x>0){
+        angle=3.14159265359/2.0;
+    }
+    return angle;
+}
+
+__device__ float fx(float x,float y,float z,float angle1,float angle2){
+    float new_pos,angle;
+    angle=f_angle(x,y);
+    new_pos=x*cos(angle2)*cos(angle1)+y*cos(angle2)*sin(angle1)-z*sin(angle2)*cos(angle1)*sin(angle)-z*sin(angle2)*sin(angle1)*cos(angle);
+    return new_pos;
+}
+__device__ float fy(float x,float y,float z,float angle1,float angle2){
+    float new_pos,angle;
+    angle=f_angle(x,y);
+    new_pos=y*cos(angle2)*cos(angle1)-x*cos(angle2)*sin(angle1)-z*sin(angle2)*cos(angle1)*cos(angle)+z*sin(angle2)*sin(angle1)*sin(angle);
+    return new_pos;
+}
+__device__ float fz(float x,float y,float z,float angle1,float angle2){
+    float new_pos;
+    new_pos=z*cos(angle2)+sqrtf(x*x+y*y)*sin(angle2);
+    return new_pos;
+}
+__global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,float* y_plane,float* z_plane,float* u_plane,float* v_plane,float* params){
+    int x=blockDim.x*blockIdx.x+threadIdx.x;
+    int y=blockDim.y*blockIdx.y+threadIdx.y;
+    int tid=y*gridDim.x*blockDim.x+x;
+    float dx=params[0],dy=params[1],dz=params[2];
+    int nx=(int)params[3],ny=(int)params[4],nz=(int)params[5],nu=(int)params[6],nv=(int)params[7];
+    float du=params[8],dv=params[9];
+    float SourceX=params[10],SourceY=params[11],SourceZ=params[12];
+    float DetectorY=params[14];
+    float angle1=params[16],angle2=params[17],R=params[18];
+    float yc;//,slope_tmp;
+    float x1,x2,x3,x4,x5,x6,x7,x8,y1,y2,y3,y4,y5,y6,y7,y8,z1,z2,z3,z4,z5,z6,z7,z8;
+    int k=0,l=0,N=nx*ny*nz,ix=0,iy=0,iz=0;
+    float u_slope1,u_slope2,u_slope3,u_slope4,u_slope5,u_slope6,u_slope7,u_slope8;
+    float v_slope1,v_slope2,v_slope3,v_slope4,v_slope5,v_slope6,v_slope7,v_slope8;
+    float coord_u1,coord_u2,coord_v1,coord_v2;
+    int index_u1,index_u2,index_v1,index_v2;
+    float slope_min,slope_max;
+    int s_index_u,e_index_u,s_index_v,e_index_v;
+    float weight1,weight2,InterpWeight=0.0;
+    if(tid<N){
+        iz=(int)tid/(nx*ny*1.0);
+        iy=(int)(tid-(iz*nx*ny))/(nx*1.0);
+        ix=(int)(tid-iz*nx*ny-iy*nx);
+        yc=fy(x_plane[ix],y_plane[iy],z_plane[iz],angle1,angle2);
+        x1=fx(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        y1=fy(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        z1=fz(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        
+        x2=fx(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        y2=fy(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        z2=fz(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        
+        x3=fx(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        y3=fy(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        z3=fz(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        
+        x4=fx(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        y4=fy(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        z4=fz(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        
+        x5=fx(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        y5=fy(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        z5=fz(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        
+        x6=fx(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        y6=fy(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        z6=fz(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        
+        x7=fx(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        y7=fy(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        z7=fz(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        
+        x8=fx(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        y8=fy(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        z8=fz(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+
+        u_slope1=(SourceX-x1)/(SourceY-y1);
+        u_slope2=(SourceX-x2)/(SourceY-y2);
+        u_slope3=(SourceX-x3)/(SourceY-y3);
+        u_slope4=(SourceX-x4)/(SourceY-y4);
+        u_slope5=(SourceX-x5)/(SourceY-y5);
+        u_slope6=(SourceX-x6)/(SourceY-y6);
+        u_slope7=(SourceX-x7)/(SourceY-y7);
+        u_slope8=(SourceX-x8)/(SourceY-y8);
+        slope_min=fmin(u_slope1,fmin(u_slope2,fmin(u_slope3,fmin(u_slope4,fmin(u_slope5,fmin(u_slope6,fmin(u_slope7,u_slope8)))))));
+        slope_max=fmax(u_slope1,fmax(u_slope2,fmax(u_slope3,fmax(u_slope4,fmax(u_slope5,fmax(u_slope6,fmax(u_slope7,u_slope8)))))));
+        coord_u1=(slope_min*DetectorY)+(SourceX-slope_min*SourceY);
+        coord_u2=(slope_max*DetectorY)+(SourceX-slope_max*SourceY);
+        index_u1=floor((coord_u1-u_plane[0])*1.0/du);
+        index_u2=floor((coord_u2-u_plane[0])*1.0/du);
+        s_index_u=min(index_u1,index_u2);
+        e_index_u=max(index_u1,index_u2);
+        v_slope1=(SourceZ-z1)/(SourceY-y1);
+        v_slope2=(SourceZ-z2)/(SourceY-y2);
+        v_slope3=(SourceZ-z3)/(SourceY-y3);
+        v_slope4=(SourceZ-z4)/(SourceY-y4);
+        v_slope5=(SourceZ-z5)/(SourceY-y5);
+        v_slope6=(SourceZ-z6)/(SourceY-y6);
+        v_slope7=(SourceZ-z7)/(SourceY-y7);
+        v_slope8=(SourceZ-z8)/(SourceY-y8);
+        slope_min=fmin(v_slope1,fmin(v_slope2,fmin(v_slope3,fmin(v_slope4,fmin(v_slope5,fmin(v_slope6,fmin(v_slope7,v_slope8)))))));
+        slope_max=fmax(v_slope1,fmax(v_slope2,fmax(v_slope3,fmax(v_slope4,fmax(v_slope5,fmax(v_slope6,fmax(v_slope7,v_slope8)))))));
+        coord_v1=(slope_min*DetectorY)+(SourceZ-slope_min*SourceY);
+        coord_v2=(slope_max*DetectorY)+(SourceZ-slope_max*SourceY);
+        index_v1=floor((coord_v1-v_plane[0])*1.0/dv);
+        index_v2=floor((coord_v2-v_plane[0])*1.0/dv);
+        s_index_v=min(index_v1,index_v2);
+        e_index_v=max(index_v1,index_v2);
+        InterpWeight=(R*R)/((R-yc)*(R-yc));
+        for(k=s_index_v;k<=e_index_v;k++){
+            if(k>=0 && k<=nv-1){
+                if(s_index_v==e_index_v){
+                    weight1=1.0;
+                }else if(k==s_index_v){
+                    weight1=(fmax(coord_v1,coord_v2)-v_plane[k+1])/fabs(coord_v1-coord_v2);
+                }else if(k==e_index_v){
+                    weight1=(v_plane[k]-fmin(coord_v1,coord_v2))/fabs(coord_v1-coord_v2);
+                }else{
+                    weight1=fabs(dv)/fabs(coord_v1-coord_v2);
+                }
+                for(l=s_index_u;l<=e_index_u;l++){
+                    if(l>=0 && l<=nu-1){
+                        if(s_index_u==e_index_u){
+                            weight2=1.0;
+                        }else if(l==s_index_u){
+                            weight2=(u_plane[l+1]-fmin(coord_u1,coord_u2))/fabs(coord_u1-coord_u2);
+                        }else if(l==e_index_u){
+                            weight2=(fmax(coord_u1,coord_u2)-u_plane[l])/fabs(coord_u1-coord_u2);
+                        }else{
+                            weight2=fabs(du)/fabs(coord_u1-coord_u2);
+                        }
+                        atomicAdd(&Dest[tid],Src[k*nu+l]*weight1*weight2*InterpWeight);
+                    }                    
+                }
+            }
+        }
+    }
+}
     
     """)
     return mod
