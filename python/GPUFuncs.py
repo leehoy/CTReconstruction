@@ -1,6 +1,8 @@
 import pycuda.driver as drv
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
+
+
 def DefineGPUFuns():
     mod = SourceModule("""
     #include <stdio.h>
@@ -22,7 +24,7 @@ def DefineGPUFuns():
         float w1=NewX-domain[XLow];
         float w2=domain[XHigh]-NewX;
         if(w1==0 && w2==0)
-            w1=1.0;
+            w1=1.0f;
         if(x<NewDomainLength){
             if(XHigh<OrgDomainLength && XLow>=0){
                 //Bilinear interpolation for 2-D grid
@@ -61,9 +63,9 @@ def DefineGPUFuns():
             float w3=NewY-domainY[YLow];
             float w4=domainY[YHigh]-NewY;
             if(fabs(w1-0)<0.0001 && fabs(w2-0)<0.0001)
-                w1=1.0;
+                w1=1.0f;
             if(fabs(w3-0)<0.0001 && fabs(w4-0)<0.0001)
-                w3=1.0;
+                w3=1.0f;
             M=0;N=0;S=0;
             //printf("%f %f %f %f \\n",w1,w2,w3,w4);
             if(XHigh<OrgDomainLengthX && XLow>=0 && YHigh<OrgDomainLengthY && YLow>=0){
@@ -116,27 +118,27 @@ def DefineGPUFuns():
                 for(k=s_index_x;k<=e_index_x;k++){
                     if(k>=0 && k<= nx-1){
                         if(s_index_x==e_index_x){
-                            weight1=1.0;
+                            weight1=1.0f;
                         }else if(k==s_index_x){
-                            weight1=(Xplane[k+1]-fmin(CoordX1[tid],CoordX2[tid]))/fabs(CoordX1[tid]-CoordX2[tid]);
+                            weight1=(Xplane[k+1]-fminf(CoordX1[tid],CoordX2[tid]))/fabsf(CoordX1[tid]-CoordX2[tid]);
                         }else if(k==e_index_x){
-                            weight1=(fmax(CoordX1[tid],CoordX2[tid])-Xplane[k])/fabs(CoordX1[tid]-CoordX2[tid]);
+                            weight1=(fmaxf(CoordX1[tid],CoordX2[tid])-Xplane[k])/fabsf(CoordX1[tid]-CoordX2[tid]);
                         }else{
-                            weight1=fabs(dx)/fabs(CoordX1[tid]-CoordX2[tid]);
+                            weight1=fabsf(dx)/fabsf(CoordX1[tid]-CoordX2[tid]);
                         }
                         if(fabs(weight1)<0.000001){
-                            weight1=0.0;
+                            weight1=0.0f;
                         }
                         for(l=s_index_z;l<=e_index_z;l++){
                             if(l>=0 && l<= nz-1){
                                 if(s_index_z==e_index_z){
-                                    weight2=1.0;
+                                    weight2=1.0f;
                                 }else if(l==s_index_z){
-                                    weight2=(fmax(CoordZ1[tid],CoordZ2[tid])-Zplane[l+1])/fabs(CoordZ1[tid]-CoordZ2[tid]);
+                                    weight2=(fmaxf(CoordZ1[tid],CoordZ2[tid])-Zplane[l+1])/fabsf(CoordZ1[tid]-CoordZ2[tid]);
                                 }else if(l==e_index_z){
-                                    weight2=(Zplane[l]-fmin(CoordZ1[tid],CoordZ2[tid]))/fabs(CoordZ1[tid]-CoordZ2[tid]);
+                                    weight2=(Zplane[l]-fminf(CoordZ1[tid],CoordZ2[tid]))/fabsf(CoordZ1[tid]-CoordZ2[tid]);
                                 }else{
-                                    weight2=fabs(dz)/fabs(CoordZ1[tid]-CoordZ2[tid]);
+                                    weight2=fabsf(dz)/fabsf(CoordZ1[tid]-CoordZ2[tid]);
                                 }
                                 if(fabs(weight2)<0.000001){
                                     weight2=0.0;
@@ -168,30 +170,30 @@ def DefineGPUFuns():
                 for(k=s_index_y;k<=e_index_y;k++){
                     if(k>=0 && k<= ny-1){
                          if(s_index_y==e_index_y){
-                            weight1=1.0;
+                            weight1=1.0f;
                         }else if(k==s_index_y){
-                            weight1=(fmax(CoordY1[tid],CoordY2[tid])-Yplane[k+1])/fabs(CoordY1[tid]-CoordY2[tid]);
+                            weight1=(fmaxf(CoordY1[tid],CoordY2[tid])-Yplane[k+1])/fabsf(CoordY1[tid]-CoordY2[tid]);
                         }else if(k==e_index_y){
-                            weight1=(Yplane[k]-fmin(CoordY1[tid],CoordY2[tid]))/fabs(CoordY1[tid]-CoordY2[tid]);
+                            weight1=(Yplane[k]-fmin(CoordY1[tid],CoordY2[tid]))/fabsf(CoordY1[tid]-CoordY2[tid]);
                         }else{
-                            weight1=fabs(dy)/fabs(CoordY1[tid]-CoordY2[tid]);
+                            weight1=fabsf(dy)/fabsf(CoordY1[tid]-CoordY2[tid]);
                         }
                         if(fabs(weight1)<0.000001){
-                            weight1=0.0;
+                            weight1=0.0f;
                         }
                         for(l=s_index_z;l<=e_index_z;l++){
                             if(l>=0 && l<=nz-1){
                                 if(s_index_z==e_index_z){
-                                    weight2=1.0;
+                                    weight2=1.0f;
                                 }else if(l==s_index_z){
-                                    weight2=(fmax(CoordZ1[tid],CoordZ2[tid])-Zplane[l+1])/fabs(CoordZ1[tid]-CoordZ2[tid]);
+                                    weight2=(fmaxf(CoordZ1[tid],CoordZ2[tid])-Zplane[l+1])/fabsf(CoordZ1[tid]-CoordZ2[tid]);
                                 }else if(l==e_index_z){
-                                    weight2=(Zplane[l]-fmin(CoordZ1[tid],CoordZ2[tid]))/fabs(CoordZ1[tid]-CoordZ2[tid]);
+                                    weight2=(Zplane[l]-fminf(CoordZ1[tid],CoordZ2[tid]))/fabsf(CoordZ1[tid]-CoordZ2[tid]);
                                 }else{
-                                    weight2=fabs(dz)/fabs(CoordZ1[tid]-CoordZ2[tid]);
+                                    weight2=fabsf(dz)/fabsf(CoordZ1[tid]-CoordZ2[tid]);
                                 }
                                 if(fabs(weight2)<0.000001){
-                                    weight2=0.0;
+                                    weight2=0.0f;
                                 }
                                 atomicAdd(&Dest[tid],Src[(l*nx*ny)+k*nx+ix]*weight1*weight2);
                             }
@@ -232,30 +234,30 @@ def DefineGPUFuns():
                 for(k=s_index_x;k<=e_index_x;k++){
                     if(k>=0 && k<= nx-1){
                         if(s_index_x==e_index_x){
-                            weight1=1.0;
+                            weight1=1.0f;
                         }else if(k==s_index_x){
-                            weight1=(Xplane[k+1]-fmin(coord_x1,coord_x2))/fabs(coord_x1-coord_x2);
+                            weight1=(Xplane[k+1]-fminf(coord_x1,coord_x2))/fabsf(coord_x1-coord_x2);
                         }else if(k==e_index_x){
-                            weight1=(fmax(coord_x1,coord_x2)-Xplane[k])/fabs(coord_x1-coord_x2);
+                            weight1=(fmaxf(coord_x1,coord_x2)-Xplane[k])/fabsf(coord_x1-coord_x2);
                         }else{
-                            weight1=fabs(dx)/fabs(coord_x1-coord_x2);
+                            weight1=fabsf(dx)/fabsf(coord_x1-coord_x2);
                         }
                         if(fabs(weight1)<0.000001){
-                            weight1=0.0;
+                            weight1=0.0f;
                         }
                         for(l=s_index_z;l<=e_index_z;l++){
                             if(l>=0 && l<= nz-1){
                                 if(s_index_z==e_index_z){
-                                    weight2=1.0;
+                                    weight2=1.0f;
                                 }else if(l==s_index_z){
-                                    weight2=(fmax(coord_z1,coord_z2)-Zplane[l+1])/fabs(coord_z1-coord_z2);
+                                    weight2=(fmaxf(coord_z1,coord_z2)-Zplane[l+1])/fabsf(coord_z1-coord_z2);
                                 }else if(l==e_index_z){
-                                    weight2=(Zplane[l]-fmin(coord_z1,coord_z2))/fabs(coord_z1-coord_z2);
+                                    weight2=(Zplane[l]-fmin(coord_z1,coord_z2))/fabsf(coord_z1-coord_z2);
                                 }else{
-                                    weight2=fabs(dz)/fabs(coord_z1-coord_z2);
+                                    weight2=fabsf(dz)/fabsf(coord_z1-coord_z2);
                                 }
                                 if(fabs(weight2)<0.000001){
-                                    weight2=0.0;
+                                    weight2=0.0f;
                                 }
                                 atomicAdd(&Dest[pix_num],Src[(l*nx*ny)+iy*nx+k]*weight1*weight2);
                             }
@@ -297,30 +299,30 @@ def DefineGPUFuns():
                 for(k=s_index_y;k<=e_index_y;k++){
                     if(k>=0 && k<= ny-1){
                          if(s_index_y==e_index_y){
-                            weight1=1.0;
+                            weight1=1.0f;
                         }else if(k==s_index_y){
-                            weight1=(fmax(coord_y1,coord_y2)-Yplane[k+1])/fabs(coord_y1-coord_y2);
+                            weight1=(fmaxf(coord_y1,coord_y2)-Yplane[k+1])/fabsf(coord_y1-coord_y2);
                         }else if(k==e_index_y){
-                            weight1=(Yplane[k]-fmin(coord_y1,coord_y2))/fabs(coord_y1-coord_y2);
+                            weight1=(Yplane[k]-fminf(coord_y1,coord_y2))/fabsf(coord_y1-coord_y2);
                         }else{
-                            weight1=fabs(dy)/fabs(coord_y1-coord_y2);
+                            weight1=fabsf(dy)/fabsf(coord_y1-coord_y2);
                         }
                         if(fabs(weight1)<0.000001){
-                            weight1=0.0;
+                            weight1=0.0f;
                         }
                         for(l=s_index_z;l<=e_index_z;l++){
                             if(l>=0 && l<=nz-1){
                                 if(s_index_z==e_index_z){
-                                    weight2=1.0;
+                                    weight2=1.0f;
                                 }else if(l==s_index_z){
-                                    weight2=(fmax(coord_z1,coord_z2)-Zplane[l+1])/fabs(coord_z1-coord_z2);
+                                    weight2=(fmaxf(coord_z1,coord_z2)-Zplane[l+1])/fabsf(coord_z1-coord_z2);
                                 }else if(l==e_index_z){
-                                    weight2=(Zplane[l]-fmin(coord_z1,coord_z2))/fabs(coord_z1-coord_z2);
+                                    weight2=(Zplane[l]-fminf(coord_z1,coord_z2))/fabsf(coord_z1-coord_z2);
                                 }else{
-                                    weight2=fabs(dz)/fabs(coord_z1-coord_z2);
+                                    weight2=fabsf(dz)/fabsf(coord_z1-coord_z2);
                                 }
                                 if(fabs(weight2)<0.000001){
-                                    weight2=0.0;
+                                    weight2=0.0f;
                                 }
                                 atomicAdd(&Dest[pix_num],Src[(l*nx*ny)+k*nx+ix]*weight1*weight2);
                             }
@@ -330,7 +332,7 @@ def DefineGPUFuns():
             }
     }
     
-    __global__ void distance_project_on_z2(float* Dest,float* Src,float* slope_x1,float* slope_x2,float* slope_y1,float* slope_y2,float* intercept_x1,float* intercept_x2,float* intercept_y1,float* intercept_y2,float* Xplane,float* Yplane,float* Zplane,float* param){
+        __global__ void distance_project_on_z2(float* Dest,float* Src,float* slope_x1,float* slope_x2,float* slope_y1,float* slope_y2,float* intercept_x1,float* intercept_x2,float* intercept_y1,float* intercept_y2,float* Xplane,float* Yplane,float* Zplane,float* param){
             int x=blockDim.x*blockIdx.x+threadIdx.x;
             int y=blockDim.y*blockIdx.y+threadIdx.y;
             int tid=y*gridDim.x*blockDim.x+x;
@@ -360,30 +362,30 @@ def DefineGPUFuns():
                 for(k=s_index_x;k<=e_index_x;k++){
                     if(k>=0 && k<= nx-1){
                         if(s_index_x==e_index_x){
-                            weight1=1.0;
+                            weight1=1.0f;
                         }else if(k==s_index_x){
-                            weight1=(Xplane[k+1]-fmin(coord_x1,coord_x2))/fabs(coord_x1-coord_x2);
+                            weight1=(Xplane[k+1]-fminf(coord_x1,coord_x2))/fabsf(coord_x1-coord_x2);
                         }else if(k==e_index_x){
-                            weight1=(fmax(coord_x1,coord_x2)-Yplane[k])/fabs(coord_x1-coord_x2);
+                            weight1=(fmaxf(coord_x1,coord_x2)-Yplane[k])/fabsf(coord_x1-coord_x2);
                         }else{
-                            weight1=fabs(dx)/fabs(coord_x1-coord_x2);
+                            weight1=fabsf(dx)/fabsf(coord_x1-coord_x2);
                         }
                         if(fabs(weight1)<0.000001){
-                            weight1=0.0;
+                            weight1=0.0f;
                         }
                         for(l=s_index_y;l<=e_index_y;l++){
                             if(l>=0 && l<=ny-1){
                                 if(s_index_y==e_index_y){
-                                    weight2=1.0;
+                                    weight2=1.0f;
                                 }else if(l==s_index_y){
-                                    weight2=(fmax(coord_y1,coord_y2)-Yplane[l+1])/fabs(coord_y1-coord_y2);
+                                    weight2=(fmaxf(coord_y1,coord_y2)-Yplane[l+1])/fabsf(coord_y1-coord_y2);
                                 }else if(l==e_index_y){
-                                    weight2=(Yplane[l]-fmin(coord_y1,coord_y2))/fabs(coord_y1-coord_y2);
+                                    weight2=(Yplane[l]-fminf(coord_y1,coord_y2))/fabsf(coord_y1-coord_y2);
                                 }else{
-                                    weight2=fabs(dy)/fabs(coord_y1-coord_y2);
+                                    weight2=fabsf(dy)/fabsf(coord_y1-coord_y2);
                                 }
                                 if(fabs(weight2)<0.000001){
-                                    weight2=0.0;
+                                    weight2=0.0f;
                                 }
                                 atomicAdd(&Dest[pix_num],Src[(iz*nx*ny)+l*nx+k]*weight1*weight2);
                             }
@@ -545,37 +547,37 @@ __global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,flo
         iy=(int)(tid-(iz*nx*ny))/(nx*1.0);
         ix=(int)(tid-iz*nx*ny-iy*nx);
         yc=fy(x_plane[ix],y_plane[iy],z_plane[iz],angle1,angle2);
-        x1=fx(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        y1=fy(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        z1=fz(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        x1=fx(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        y1=fy(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        z1=fz(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
         
-        x2=fx(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        y2=fy(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        z2=fz(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        x2=fx(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        y2=fy(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        z2=fz(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
         
-        x3=fx(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        y3=fy(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        z3=fz(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        x3=fx(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        y3=fy(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        z3=fz(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
         
-        x4=fx(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        y4=fy(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
-        z4=fz(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2,angle1,angle2);
+        x4=fx(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        y4=fy(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
+        z4=fz(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]-dz/2.0,angle1,angle2);
         
-        x5=fx(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        y5=fy(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        z5=fz(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        x5=fx(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        y5=fy(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        z5=fz(x_plane[ix]+dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
         
-        x6=fx(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        y6=fy(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        z6=fz(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        x6=fx(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        y6=fy(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        z6=fz(x_plane[ix]-dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
         
-        x7=fx(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        y7=fy(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        z7=fz(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        x7=fx(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        y7=fy(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        z7=fz(x_plane[ix]+dx/2.0,y_plane[iy]-dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
         
-        x8=fx(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        y8=fy(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
-        z8=fz(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2,angle1,angle2);
+        x8=fx(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        y8=fy(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
+        z8=fz(x_plane[ix]-dx/2.0,y_plane[iy]+dy/2.0,z_plane[iz]+dz/2.0,angle1,angle2);
 
         u_slope1=(SourceX-x1)/(SourceY-y1);
         u_slope2=(SourceX-x2)/(SourceY-y2);
@@ -585,8 +587,8 @@ __global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,flo
         u_slope6=(SourceX-x6)/(SourceY-y6);
         u_slope7=(SourceX-x7)/(SourceY-y7);
         u_slope8=(SourceX-x8)/(SourceY-y8);
-        slope_min=fmin(u_slope1,fmin(u_slope2,fmin(u_slope3,fmin(u_slope4,fmin(u_slope5,fmin(u_slope6,fmin(u_slope7,u_slope8)))))));
-        slope_max=fmax(u_slope1,fmax(u_slope2,fmax(u_slope3,fmax(u_slope4,fmax(u_slope5,fmax(u_slope6,fmax(u_slope7,u_slope8)))))));
+        slope_min=fminf(u_slope1,fminf(u_slope2,fminf(u_slope3,fminf(u_slope4,fminf(u_slope5,fminf(u_slope6,fminf(u_slope7,u_slope8)))))));
+        slope_max=fmaxf(u_slope1,fmaxf(u_slope2,fmaxf(u_slope3,fmaxf(u_slope4,fmaxf(u_slope5,fmaxf(u_slope6,fmaxf(u_slope7,u_slope8)))))));
         coord_u1=(slope_min*DetectorY)+(SourceX-slope_min*SourceY);
         coord_u2=(slope_max*DetectorY)+(SourceX-slope_max*SourceY);
         index_u1=floor((coord_u1-u_plane[0])*1.0/du);
@@ -601,8 +603,8 @@ __global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,flo
         v_slope6=(SourceZ-z6)/(SourceY-y6);
         v_slope7=(SourceZ-z7)/(SourceY-y7);
         v_slope8=(SourceZ-z8)/(SourceY-y8);
-        slope_min=fmin(v_slope1,fmin(v_slope2,fmin(v_slope3,fmin(v_slope4,fmin(v_slope5,fmin(v_slope6,fmin(v_slope7,v_slope8)))))));
-        slope_max=fmax(v_slope1,fmax(v_slope2,fmax(v_slope3,fmax(v_slope4,fmax(v_slope5,fmax(v_slope6,fmax(v_slope7,v_slope8)))))));
+        slope_min=fminf(v_slope1,fminf(v_slope2,fminf(v_slope3,fminf(v_slope4,fminf(v_slope5,fminf(v_slope6,fminf(v_slope7,v_slope8)))))));
+        slope_max=fmaxf(v_slope1,fmaxf(v_slope2,fmaxf(v_slope3,fmaxf(v_slope4,fmaxf(v_slope5,fmaxf(v_slope6,fmaxf(v_slope7,v_slope8)))))));
         coord_v1=(slope_min*DetectorY)+(SourceZ-slope_min*SourceY);
         coord_v2=(slope_max*DetectorY)+(SourceZ-slope_max*SourceY);
         index_v1=floor((coord_v1-v_plane[0])*1.0/dv);
@@ -613,24 +615,24 @@ __global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,flo
         for(k=s_index_v;k<=e_index_v;k++){
             if(k>=0 && k<=nv-1){
                 if(s_index_v==e_index_v){
-                    weight1=1.0;
+                    weight1=1.0f;
                 }else if(k==s_index_v){
-                    weight1=(fmax(coord_v1,coord_v2)-v_plane[k+1])/fabs(coord_v1-coord_v2);
+                    weight1=(fmaxf(coord_v1,coord_v2)-v_plane[k+1])/fabsf(coord_v1-coord_v2);
                 }else if(k==e_index_v){
-                    weight1=(v_plane[k]-fmin(coord_v1,coord_v2))/fabs(coord_v1-coord_v2);
+                    weight1=(v_plane[k]-fminf(coord_v1,coord_v2))/fabsf(coord_v1-coord_v2);
                 }else{
-                    weight1=fabs(dv)/fabs(coord_v1-coord_v2);
+                    weight1=fabsf(dv)/fabsf(coord_v1-coord_v2);
                 }
                 for(l=s_index_u;l<=e_index_u;l++){
                     if(l>=0 && l<=nu-1){
                         if(s_index_u==e_index_u){
-                            weight2=1.0;
+                            weight2=1.0f;
                         }else if(l==s_index_u){
-                            weight2=(u_plane[l+1]-fmin(coord_u1,coord_u2))/fabs(coord_u1-coord_u2);
+                            weight2=(u_plane[l+1]-fminf(coord_u1,coord_u2))/fabsf(coord_u1-coord_u2);
                         }else if(l==e_index_u){
-                            weight2=(fmax(coord_u1,coord_u2)-u_plane[l])/fabs(coord_u1-coord_u2);
+                            weight2=(fmaxf(coord_u1,coord_u2)-u_plane[l])/fabsf(coord_u1-coord_u2);
                         }else{
-                            weight2=fabs(du)/fabs(coord_u1-coord_u2);
+                            weight2=fabsf(du)/fabsf(coord_u1-coord_u2);
                         }
                         atomicAdd(&Dest[tid],Src[k*nu+l]*weight1*weight2*InterpWeight);
                     }                    
