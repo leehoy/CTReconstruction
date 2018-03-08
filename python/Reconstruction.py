@@ -13,6 +13,11 @@ import pycuda.gpuarray
 from math import ceil
 import time
 from GPUFuncs import *
+import logging
+
+# define logger
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger(__name__)
 
 # function alias starts
 sin = np.sin
@@ -25,31 +30,36 @@ repmat = numpy.matlib.repmat
 ceil = np.ceil
 pi = np.pi
 floor = np.floor
+log2 = np.log2
+fft = np.fft.fft
+ifft = np.fft.ifft
+fftshift = np.fft.fftshift
+ifftshift = np.fft.ifftshift
+real = np.real
 # function alias ends
 mod = DefineGPUFuns()
 
 
 class Reconstruction(object):
 
-    def __init__(self, filename, params):
+    def __init__(self, params):
         self.params = {'SourceInit': [0, 0, 0], 'DetectorInit': [0, 0, 0], 'StartAngle': 0,
                        'EndAngle': 0, 'NumberOfDetectorPixels': [0, 0], 'DetectorPixelSize': [0, 0],
                        'NumberOfViews': 0, 'ImagePixelSpacing': [0, 0, 0], 'NumberOfImage': [0, 0, 0],
-                       'PhantomCenter': [0, 0, 0], 'Origin': [0, 0, 0], 'Method': 'Distance', 'GPU': 0}
+                       'PhantomCenter': [0, 0, 0], 'Origin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak',
+                       'cutoff': 1, 'GPU': 0}
         self.params = params
 
     #         start_time = time.time()
     #         self.proj = self.LoadProj(filename, [self.params['NumberOfViews'], self.params['NumberOfDetectorPixels'][1], self.params['NumberOfDetectorPixels'][0]], dtype=np.float32)
     # print('File load: ' + str(time.time() - start_time))
-    @staticmethod
-    def LoadProj(filename, image_size, dtype=np.float32):
-        proj = np.fromfile(filename, dtype=dtype).reshape(image_size)
-        return proj
+    def LoadProj(self, filename, image_size, dtype=np.float32):
+        self.proj = np.fromfile(filename, dtype=dtype).reshape(image_size)
+        # return proj
 
-    @staticmethod
-    def LoadRecon(filename, image_size, dtype=np.float32):
-        image = np.fromfile(filename, dtype=dtype).reshape(image_size)
-        return image
+    def LoadRecon(self, filename, image_size, dtype=np.float32):
+        self.image = np.fromfile(filename, dtype=dtype).reshape(image_size)
+        # return image
 
     def SaveProj(self, filename):
         self.proj.tofile(filename, sep='', format='')
@@ -152,6 +162,15 @@ class Reconstruction(object):
         filter[np.where(abs(w) > pi * cutoff / (2 * pixel_size))] = 0
         return filter
 
+    def Filtering(self):
+        [du, dv] = self.params['DetectorPixelSize']
+        [nu, nv] = self.params['NumberOfDetectorPixels']
+        ZeroPaddedLength = int(2 ** (ceil(log2(2 * (nu - 1)))))
+        ki = (np.arange(0, nu + 1) - nu / 2.0) * du
+        p = (np.arange(0, nv + 1) - nv / 2.0) * dv
+        for i in range(self.proj.shape[0]):
+            self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p, self.params)
+
     def backward(self):
         start_time = time.time()
         nViews = self.params['NumberOfViews']
@@ -193,8 +212,8 @@ class Reconstruction(object):
         ev = [cos(gamma) * -sin(alpha), cos(gamma) * cos(alpha), sin(gamma)]
         ew = [0, 0, 1]
         print('Variable initialization: ' + str(time.time() - start_time))
-        Source = [-SAD * sin(angle[0]), SAD * cos(angle[0]), 0]  # z-direction rotation
-        Detector = [(SDD - SAD) * sin(angle[0]), -(SDD - SAD) * cos(angle[0]), 0]
+        Source = np.array([-SAD * sin(angle[0]), SAD * cos(angle[0]), 0])  # z-direction rotation
+        Detector = np.array([(SDD - SAD) * sin(angle[0]), -(SDD - SAD) * cos(angle[0]), 0])
         DetectorLength = np.array(
             [np.arange(floor(-nu / 2), floor(nu / 2) + 1) * du, np.arange(floor(-nv / 2), floor(nv / 2) + 1) * dv])
         DetectorVectors = [eu, ev, ew]
@@ -592,8 +611,8 @@ class Reconstruction(object):
             # for i in range(12, 13):
             print(i)
             start_time = time.time()
-            Source = [-SAD * sin(angle[i]), SAD * cos(angle[i]), 0]  # z-direction rotation
-            Detector = [(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), 0]
+            Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]), 0])  # z-direction rotation
+            Detector = np.array([(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), 0])
             DetectorLength = np.array(
                 [np.arange(floor(-nu / 2), floor(nu / 2) + 1) * du, np.arange(floor(-nv / 2), floor(nv / 2) + 1) * dv])
             DetectorVectors = [eu, ev, ew]
@@ -824,7 +843,7 @@ class Reconstruction(object):
                 intercept_y1_gpu = pycuda.gpuarray.to_gpu(InterceptsV1.flatten().astype(np.float32))
                 intercept_y2_gpu = pycuda.gpuarray.to_gpu(InterceptsV2.flatten().astype(np.float32))
                 proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
-                distance_proj_on_y_gpu(dest, drv.In(image), slope_x1_gpu, slope_x2_gpu, slope_y1_gpu,
+                distance_proj_on_z_gpu(dest, drv.In(image), slope_x1_gpu, slope_x2_gpu, slope_y1_gpu,
                                        slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu,
                                        intercept_y2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu, proj_param_gpu,
                                        block=(blockX, blockY, blockZ), grid=(gridX, gridY))
@@ -1013,7 +1032,7 @@ class Reconstruction(object):
         SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2))
         SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2))
         angle = np.linspace(StartAngle, EndAngle, nViews + 1)
-        angle = theta[0:-2]
+        angle = theta[0:-1]
         Xplane = (PhantomCenter[0] - nx / 2 + range(0, nx)) * dx
         Yplane = (PhantomCenter[1] - ny / 2 + range(0, ny)) * dy
         Zplane = (PhantomCenter[2] - nz / 2 + range(0, nz)) * dz
