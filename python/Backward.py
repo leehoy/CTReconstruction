@@ -862,6 +862,7 @@ class Backward:
             if(self.params['Method'] == 'Distance'):
                 start_time = time.time()
                 recon += self.distance_backproj(self.proj[i, :, :], DetectorIndex, angle[i], Xpixel, Ypixel, Zpixel, ki, p) * dtheta
+                print('backproj one data ', time.time()-start_time)
                 # print('Total backprojection: ' + str(time.time() - start_time))
 #                 plt.imshow(recon[127, :, :], cmap='gray')
 #                 plt.show()
@@ -917,6 +918,7 @@ class Backward:
 #         ReconY_c4=-(xx-dx/2)*sin(angle)+(yy+dy/2)*cos(angle)
         # plt.imshow(Q,cmap='gray')
         # plt.show()
+        start_time=time.time()
         if self.params['GPU']:
             device = drv.Device(0)
             attrs = device.get_attributes()
@@ -935,10 +937,11 @@ class Backward:
             z_pixel_gpu = pycuda.gpuarray.to_gpu(Zpixel.astype(np.float32))
             u_plane_gpu = pycuda.gpuarray.to_gpu(ki.astype(np.float32))
             v_plane_gpu = pycuda.gpuarray.to_gpu(p.astype(np.float32))
-
+        print('data transfer', time.time()-start_time)
         if(rotation_vector == [0, 0, 1]):
             start_time = time.time()
             if(self.params['GPU']):
+                start_time=time.time()
                 TotalSize = nx * ny * nz
                 if(TotalSize < MAX_THREAD_PER_BLOCK):
                     blockX = nx * ny * nz
@@ -959,10 +962,11 @@ class Backward:
                     except ErrorDescription as e:
                         print(e)
                         sys.exit()
-
+                print('gpu variable init ' ,time.time()-start_time)
+                start_time=time.time()
                 recon_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1], Detector[2], angle, 0.0, R]).astype(np.float32)
                 recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param)
-
+                
                 #distance_backproj_about_z_gpu(dest, drv.In(Q), x_pixel_gpu, y_pixel_gpu,
                 #                 z_pixel_gpu, u_plane_gpu, v_plane_gpu, recon_param_gpu,
                 #                      block=(blockX, blockY, blockZ), grid=(gridX, gridY))
@@ -971,6 +975,7 @@ class Backward:
                                       block=(blockX, blockY, blockZ), grid=(gridX, gridY))
                 del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
                 recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
+                print('actual projection ',time.time()-start_time)
                 del dest
             else:
                 recon = self._distance_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle, 0.0, self.params)  # * intersection_length
@@ -1406,6 +1411,7 @@ def main():
     F.backward()
     F.recon.tofile('recon_distance.dat', sep='', format='')
     end_time = time.time()
+    print(end_time-start_time)
     # plt.imshow(F.recon[0, :, :], cmap='gray')
     # plt.show()
 
