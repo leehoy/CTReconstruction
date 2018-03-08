@@ -364,14 +364,14 @@ __global__ void distance_project_on_z2(float* Dest,float* Src,float* slope_x1,fl
         int nx=(int)param[3],ny=(int)param[4],nz=(int)param[5],nu=(int)param[6],nv=(int)param[7];
         int k=0,l=0,N=nu*nv;
         float weight1=0.0,weight2=0.0;
-        int ix=(int) floor(tid*1.0 /N);
-        int pix_num=tid-(N*ix); 
+        int iz=(int) floor(tid*1.0 /N);
+        int pix_num=tid-(N*iz); 
         float coord_x1,coord_x2,coord_y1,coord_y2;
         int index_x1,index_x2,index_y1,index_y2;
         coord_x1=slope_x1[pix_num]*(Zplane[iz]+dz/2)+intercept_x1[pix_num];
         coord_x2=slope_x2[pix_num]*(Zplane[iz]+dz/2)+intercept_x2[pix_num];
-        coord_z1=slope_y1[pix_num]*(Zplane[iz]+dz/2)+intercept_y1[pix_num];
-        coord_z2=slope_y2[pix_num]*(Zplane[iz]+dz/2)+intercept_y2[pix_num];
+        coord_y1=slope_y1[pix_num]*(Zplane[iz]+dz/2)+intercept_y1[pix_num];
+        coord_y2=slope_y2[pix_num]*(Zplane[iz]+dz/2)+intercept_y2[pix_num];
         index_x1=(int) floor((coord_x1-Xplane[0])*1.0/dx);
         index_x2=(int) floor((coord_x2-Xplane[0])*1.0/dx);
         index_y1=(int) floor((coord_y1-Yplane[0])*1.0/dy);
@@ -386,7 +386,7 @@ __global__ void distance_project_on_z2(float* Dest,float* Src,float* slope_x1,fl
                      if(s_index_x==e_index_x){
                         weight1=1.0;
                     }else if(k==s_index_x){
-                        weight1=(Xplane[k+1]-fmin(coord_x1,coord_x2)/fabs(coord_x1-coord_x2);
+                        weight1=(Xplane[k+1]-fmin(coord_x1,coord_x2))/fabs(coord_x1-coord_x2);
                     }else if(k==e_index_x){
                         weight1=(fmax(coord_x1,coord_x2)-Yplane[k])/fabs(coord_x1-coord_x2);
                     }else{
@@ -555,8 +555,8 @@ class Forward:
         # for i in range(12, 13):
             print(i)
             start_time = time.time()
-            Source = [-SAD * sin(angle[i]), SAD * cos(angle[i]), 0]  # z-direction rotation
-            Detector = [(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), 0]
+            Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]), 0]) # z-direction rotation
+            Detector = np.array( [(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), 0])
             DetectorLength = np.array([np.arange(floor(-nu / 2), floor(nu / 2) + 1) * du, np.arange(floor(-nv / 2), floor(nv / 2) + 1) * dv])
             DetectorVectors = [eu, ev, ew]
             DetectorIndex = self.DetectorConstruction(Detector, DetectorLength, DetectorVectors, angle[i])
