@@ -211,7 +211,7 @@ class Reconstruction(object):
         eu = [cos(gamma) * cos(alpha), sin(alpha), sin(gamma)]
         ev = [cos(gamma) * -sin(alpha), cos(gamma) * cos(alpha), sin(gamma)]
         ew = [0, 0, 1]
-        print('Variable initialization: ' + str(time.time() - start_time))
+        #print('Variable initialization: ' + str(time.time() - start_time))
         Source = np.array([-SAD * sin(angle[0]), SAD * cos(angle[0]), 0])  # z-direction rotation
         Detector = np.array([(SDD - SAD) * sin(angle[0]), -(SDD - SAD) * cos(angle[0]), 0])
         DetectorLength = np.array(
@@ -223,7 +223,7 @@ class Reconstruction(object):
         # plt.show()
         for i in range(nViews):
             # for i in range(12, 13):
-            # print(i)
+            #print(i)
             start_time = time.time()
             # print('Detector initialization: ' + str(time.time() - start_time))
             if (self.params['Method'] == 'Distance'):
@@ -605,11 +605,11 @@ class Reconstruction(object):
         eu = [cos(gamma) * cos(alpha), sin(alpha), sin(gamma)]
         ev = [cos(gamma) * -sin(alpha), cos(gamma) * cos(alpha), sin(gamma)]
         ew = [0, 0, 1]
-        print('Variable initialization: ' + str(time.time() - start_time))
+        #print('Variable initialization: ' + str(time.time() - start_time))
 
         for i in range(nViews):
             # for i in range(12, 13):
-            # print(i)
+            #print(i)
             start_time = time.time()
             Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]), 0])  # z-direction rotation
             Detector = np.array([(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), 0])
@@ -621,10 +621,10 @@ class Reconstruction(object):
             if (self.params['Method'] == 'Distance'):
                 start_time = time.time()
                 proj[i, :, :] = self.distance(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
-                # print('Total projection: ' + str(time.time() - start_time))
+                #print('Total projection: ' + str(time.time() - start_time))
             elif (self.params['Method'] == 'Ray'):
                 proj[i, :, :] = self.ray(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
-            # print('time taken: ' + str(time.time() - start_time) + '\n')
+            #print('time taken: ' + str(time.time() - start_time) + '\n')
         self.proj = proj
 
     def distance(self, DetectorIndex, Source, Detector, angle, Xplane, Yplane, Zplane):
