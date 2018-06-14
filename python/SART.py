@@ -37,7 +37,7 @@ norm2 = Reconstruction(params)
 norm2.image = np.ones(params['NumberOfImage'])
 norm2.forward()
 iter = 10
-alpha = 0.1
+alpha = 1
 rmse = np.zeros(iter, dtype=np.float32)
 # plt.imshow(R.image[:, :, 128], cmap='gray')
 # plt.show()
