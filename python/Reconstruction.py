@@ -101,13 +101,14 @@ class Reconstruction(object):
         tol_max = 1e6
         eu = [cos(angle), sin(angle), 0]
         ew = [sin(angle), -cos(angle), 0]
-        ev = [0, 0, 1]
+        ev = [0.0, 0.0, 1.0]
         [nu, nv] = self.params['NumberOfDetectorPixels']
         [du, dv] = self.params['DetectorPixelSize']
         [dx, dy, dz] = self.params['ImagePixelSpacing']
         [nx, ny, nz] = self.params['NumberOfImage']
-        u = (np.arange(0, nu) - (nu - 1) / 2) * du
-        v = (np.arange(0, nv) - (nv - 1) / 2) * dv
+        #dv=-1.0*dv
+        u = (np.arange(0, nu) - (nu - 1.0) / 2.0) * du
+        v = (np.arange(0, nv) - (nv - 1.0) / 2.0) * dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
 
         # U, V = np.meshgrid(u, v)
@@ -151,10 +152,10 @@ class Reconstruction(object):
                 raise ErrorDescription(4)
         except ErrorDescription as e:
             print(e)
-        x = np.arange(0, N) - (N - 1) / 2
+        x = np.arange(0, N) - (N - 1) / 2.0
         h = np.zeros(len(x))
         h[np.where(x == 0)] = 1 / (8 * pixel_size ** 2)
-        odds = np.where(x % 2 == 1)
+        odds = np.where(x % 2.0 == 1)
         h[odds] = -0.5 / (pi * pixel_size * x[odds]) ** 2
         h = h[0:-1]
         filter = abs(fftshift(fft(h)))
@@ -165,22 +166,22 @@ class Reconstruction(object):
         elif FilterType == 'shepp-logan':
             zero = np.where(w == 0)
             tmp = filter[zero]
-            filter = filter * sin(w / (2 * cutoff)) / (w / (2 * cutoff))
-            filter[zero] = tmp * sin(w[zero] / (2 * cutoff))
+            filter = filter * sin(w / (2.0 * cutoff)) / (w / (2.0 * cutoff))
+            filter[zero] = tmp * sin(w[zero] / (2.0 * cutoff))
         elif FilterType == 'cosine':
-            filter = filter * cos(w / (2 * cutoff))
+            filter = filter * cos(w / (2.0 * cutoff))
         elif FilterType == 'hamming':
             filter = filter * (0.54 + 0.46 * (cos(w / cutoff)))
         elif FilterType == 'hann':
             filter = filter * (0.5 + 0.5 * cos(w / cutoff))
 
-        filter[np.where(abs(w) > pi * cutoff / (2 * pixel_size))] = 0
+        filter[np.where(abs(w) > pi * cutoff / (2.0 * pixel_size))] = 0
         return filter
 
     def Filtering(self):
         [du, dv] = self.params['DetectorPixelSize']
         [nu, nv] = self.params['NumberOfDetectorPixels']
-        ZeroPaddedLength = int(2 ** (ceil(log2(2 * (nu - 1)))))
+        ZeroPaddedLength = int(2.0 ** (ceil(log2(2.0 * (nu - 1)))))
         ki = (np.arange(0, nu + 1) - nu / 2.0) * du
         p = (np.arange(0, nv + 1) - nv / 2.0) * dv
         for i in range(self.proj.shape[0]):
@@ -204,8 +205,8 @@ class Reconstruction(object):
         Origin = np.array(self.params['Origin'])
         PhantomCenter = np.array(self.params['PhantomCenter'])
         gpu = self.params['GPU']
-        SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2))
-        SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2))
+        SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2.0))
+        SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2.0))
         # Calculates detector center
         # angle = np.linspace(StartAngle, EndAngle, nViews + 1)
         # angle = angle[0:-1]
@@ -247,12 +248,12 @@ class Reconstruction(object):
     def filter_proj(proj, ki, p, params):
         [du, dv] = params['DetectorPixelSize']
         [nu, nv] = params['NumberOfDetectorPixels']
-        ZeroPaddedLength = int(2 ** (ceil(log2(2 * (nu - 1)))))
-        R = sqrt(np.sum((np.array(params['SourceInit']) - np.array(params['PhantomCenter'])) ** 2))
-        D = sqrt(np.sum((np.array(params['DetectorInit']) - np.array(params['PhantomCenter'])) ** 2))
+        ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
+        R = sqrt(np.sum((np.array(params['SourceInit']) - np.array(params['PhantomCenter'])) ** 2.0))
+        D = sqrt(np.sum((np.array(params['DetectorInit']) - np.array(params['PhantomCenter'])) ** 2.0))
         # print(ki.shape, p.shape)
         [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
-        weight = R / (sqrt(R ** 2 + kk ** 2 + pp ** 2))
+        weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
 
         deltaS = du * R / (R + D)
         filter = Reconstruction.Filter(
@@ -274,7 +275,7 @@ class Reconstruction(object):
         [nx, ny, nz] = self.params['NumberOfImage']
         Source = self.params['SourceInit']
         Detector = self.params['DetectorInit']
-        R = sqrt(np.sum((np.array(Source) - np.array(self.params['PhantomCenter'])) ** 2))
+        R = sqrt(np.sum((np.array(Source) - np.array(self.params['PhantomCenter'])) ** 2.0))
         rotation_vector = [0, 0, 1]
         dy = -1 * dy
         dz = -1 * dz
@@ -286,9 +287,9 @@ class Reconstruction(object):
         angle = angle[0:-1]
         PhantomCenter = self.params['PhantomCenter']
         dtheta = angle[1] - angle[0]
-        Xpixel = (PhantomCenter[0] + np.arange(0, nx) - (nx - 1) / 2.0) * dx
-        Ypixel = (PhantomCenter[1] + np.arange(0, ny) - (ny - 1) / 2.0) * dy
-        Zpixel = (PhantomCenter[2] + np.arange(0, nz) - (nz - 1) / 2.0) * dz
+        Xpixel = PhantomCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
+        Ypixel = PhantomCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
+        Zpixel = PhantomCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
         ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
@@ -362,7 +363,7 @@ class Reconstruction(object):
         # angle2: rotation angle between point and XY-palne
         Source = np.array(params['SourceInit'])
         Detector = np.array(params['DetectorInit'])
-        R = sqrt(np.sum((np.array(Source) - np.array(params['PhantomCenter'])) ** 2))
+        R = sqrt(np.sum((np.array(Source) - np.array(params['PhantomCenter'])) ** 2.0))
         recon_pixelsX = Xpixel
         recon_pixelsY = Ypixel
         recon_pixelsZ = Zpixel
@@ -586,13 +587,14 @@ class Reconstruction(object):
         PhantomCenter = np.array(self.params['PhantomCenter'])
         HelicalPitch = self.params['Pitch']
         gpu = self.params['GPU']
-        SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2))
-        SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2))
+        SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2.0))
+        SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2.0))
         if (HelicalPitch > 0):
-            P = HelicalPitch * (nv * dv * SAD) / SDD
+            #P = HelicalPitch * (nv * dv * SAD) / SDD
+            P = HelicalPitch * (nv * dv)
             nViews = (EndAngle - StartAngle) / (2 * pi) * nViews
             log.debug(nViews)
-            assert (nViews % 1 == 0)
+            assert (nViews % 1.0 == 0)
             nViews = int(nViews)
         else:
             P = 0.0
@@ -604,9 +606,9 @@ class Reconstruction(object):
         # Xplane = (PhantomCenter[0] - (nx - 1) / 2.0 + range(0, nx + 1)) * dx
         # Yplane = (PhantomCenter[1] - (ny - 1) / 2.0 + range(0, ny + 1)) * dy
         # Zplane = (PhantomCenter[2] - (nz - 1) / 2.0 + range(0, nz + 1)) * dz
-        Xplane = (PhantomCenter[0] - (nx - 1) / 2.0 + range(0, nx + 1)) * dx
-        Yplane = (PhantomCenter[1] - (ny - 1) / 2.0 + range(0, ny + 1)) * dy
-        Zplane = (PhantomCenter[2] - (nz - 1) / 2.0 + range(0, nz + 1)) * dz
+        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1)-(nx-1)/2.0) * dx
+        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1)-(ny-1)/2.0) * dy
+        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1)-(nz-1)/2.0) * dz
         Xplane = Xplane - dx / 2
         Yplane = Yplane - dy / 2
         Zplane = Zplane - dz / 2
@@ -622,7 +624,7 @@ class Reconstruction(object):
 
         for i in range(nViews):
             # for i in range(12, 13):
-            # print(i)
+            print(i)
             start_time = time.time()
             Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]),
                                Source_Init[2] + P * angle[i] / (2 * pi)])  # z-direction rotation
@@ -633,6 +635,9 @@ class Reconstruction(object):
             # DetectorVectors = [eu, ev, ew]
             if (self.params['DetectorShape'] == 'Flat'):
                 [DetectorIndex, DetectorBoundary] = self.FlatDetectorConstruction(Source, Detector, SDD, angle[i])
+                #print(DetectorBoundary.shape)
+                #print(DetectorIndex[0,128,:])
+                #sys.exit()
             elif (self.params['DetectorShape'] == 'Curved'):
                 [DetectorIndex, DetectorBoundary] = self.CurvedDetectorConstruction(Source, Detector, SDD, angle[i])
             else:
@@ -686,10 +691,10 @@ class Reconstruction(object):
         #      DetectorIndex[2, :, :]])
         # DetectorBoundaryV1 = np.array([DetectorIndex[0, :, :], DetectorIndex[1, :, :], DetectorIndex[2, :, :] - dv / 2])
         # DetectorBoundaryV2 = np.array([DetectorIndex[0, :, :], DetectorIndex[1, :, :], DetectorIndex[2, :, :] + dv / 2])
-        SDD = sqrt(np.sum((Source - Detector) ** 2))
+        SDD = sqrt(np.sum((Source - Detector) ** 2.0))
         ray_angles = atan(sqrt(
-            (DetectorIndex[0, :, :] - Detector[0]) ** 2 + (DetectorIndex[1, :, :] - Detector[1]) ** 2 + (
-                    DetectorIndex[2, :, :] - Detector[2]) ** 2) / SDD)
+            (DetectorIndex[0, :, :] - Detector[0]) ** 2.0 + (DetectorIndex[1, :, :] - Detector[1]) ** 2.0 + (
+                    DetectorIndex[2, :, :] - Detector[2]) ** 2.0) / SDD)
         # ray_normalization = cos(ray_angles)
         ray_normalization = 1.0
         if (abs(Source[0] - Detector[0]) >= abs(Source[1] - Detector[1]) and abs(Source[0] - Detector[0]) >= abs(
