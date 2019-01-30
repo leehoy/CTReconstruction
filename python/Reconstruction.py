@@ -40,6 +40,27 @@ real = np.real
 mod = DefineGPUFuns()
 
 
+class ErrorDescription:
+    def __init__(self, value):
+        if (value == 1):
+            self.msg = 'Unknown variables'
+        elif (value == 2):
+            self.msg = 'Unknown data precision'
+        elif (value == 3):
+            self.msg = 'Number of file is different from number of projection data required'
+        elif (value == 4):
+            self.msg = 'Cutoff have to be pose between 0 and 0.5'
+        elif (value == 5):
+            self.msg = 'Smooth have to be pose between 0 and 1'
+        elif (value == 7):
+            self.msg = 'Geometry dose not have proper forward projection function'
+        else:
+            self.msg = 'Unknown error'
+
+    def __str__(self):
+        return self.msg
+
+
 class Reconstruction(object):
 
     def __init__(self, params):
@@ -106,7 +127,7 @@ class Reconstruction(object):
         [du, dv] = self.params['DetectorPixelSize']
         [dx, dy, dz] = self.params['ImagePixelSpacing']
         [nx, ny, nz] = self.params['NumberOfImage']
-        #dv=-1.0*dv
+        # dv=-1.0*dv
         u = (np.arange(0, nu) - (nu - 1.0) / 2.0) * du
         v = (np.arange(0, nv) - (nv - 1.0) / 2.0) * dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
@@ -590,7 +611,7 @@ class Reconstruction(object):
         SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2.0))
         SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2.0))
         if (HelicalPitch > 0):
-            #P = HelicalPitch * (nv * dv * SAD) / SDD
+            # P = HelicalPitch * (nv * dv * SAD) / SDD
             P = HelicalPitch * (nv * dv)
             nViews = (EndAngle - StartAngle) / (2 * pi) * nViews
             log.debug(nViews)
@@ -606,9 +627,9 @@ class Reconstruction(object):
         # Xplane = (PhantomCenter[0] - (nx - 1) / 2.0 + range(0, nx + 1)) * dx
         # Yplane = (PhantomCenter[1] - (ny - 1) / 2.0 + range(0, ny + 1)) * dy
         # Zplane = (PhantomCenter[2] - (nz - 1) / 2.0 + range(0, nz + 1)) * dz
-        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1)-(nx-1)/2.0) * dx
-        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1)-(ny-1)/2.0) * dy
-        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1)-(nz-1)/2.0) * dz
+        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1) - (nx - 1) / 2.0) * dx
+        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1) - (ny - 1) / 2.0) * dy
+        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1) - (nz - 1) / 2.0) * dz
         Xplane = Xplane - dx / 2
         Yplane = Yplane - dy / 2
         Zplane = Zplane - dz / 2
@@ -624,7 +645,7 @@ class Reconstruction(object):
 
         for i in range(nViews):
             # for i in range(12, 13):
-            print(i)
+            # print(i)
             start_time = time.time()
             Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]),
                                Source_Init[2] + P * angle[i] / (2 * pi)])  # z-direction rotation
@@ -635,9 +656,9 @@ class Reconstruction(object):
             # DetectorVectors = [eu, ev, ew]
             if (self.params['DetectorShape'] == 'Flat'):
                 [DetectorIndex, DetectorBoundary] = self.FlatDetectorConstruction(Source, Detector, SDD, angle[i])
-                #print(DetectorBoundary.shape)
-                #print(DetectorIndex[0,128,:])
-                #sys.exit()
+                # print(DetectorBoundary.shape)
+                # print(DetectorIndex[0,128,:])
+                # sys.exit()
             elif (self.params['DetectorShape'] == 'Curved'):
                 [DetectorIndex, DetectorBoundary] = self.CurvedDetectorConstruction(Source, Detector, SDD, angle[i])
             else:
@@ -697,8 +718,8 @@ class Reconstruction(object):
                     DetectorIndex[2, :, :] - Detector[2]) ** 2.0) / SDD)
         # ray_normalization = cos(ray_angles)
         ray_normalization = 1.0
-        if (abs(Source[0] - Detector[0]) >= abs(Source[1] - Detector[1]) and abs(Source[0] - Detector[0]) >= abs(
-                Source[2] - Detector[2])):
+        if (abs(dy / dx) >= abs(Source[1] - Detector[1]) / abs(Source[0] - Detector[0]) and
+                abs(dz / dx) >= abs(Source[2] - Detector[2]) / abs(Source[0] - Detector[0])):
             SlopesU1 = (Source[1] - DetectorBoundaryU1[1, :, :]) / (Source[0] - DetectorBoundaryU1[0, :, :])
             InterceptsU1 = -SlopesU1 * Source[0] + Source[1]
             SlopesU2 = (Source[1] - DetectorBoundaryU2[1, :, :]) / (Source[0] - DetectorBoundaryU2[0, :, :])
@@ -765,8 +786,8 @@ class Reconstruction(object):
                                     intersection_length / ray_normalization)
 
 
-        elif (abs(Source[1] - Detector[1]) >= abs(Source[0] - Detector[0]) and abs(Source[1] - Detector[1]) >= abs(
-                Source[2] - Detector[2])):
+        elif (abs(dx / dy) >= abs(Source[0] - Detector[0]) / abs(Source[1] - Detector[1]) and
+              abs(dz / dy) >= abs(Source[2] - Detector[2]) / abs(Source[1] - Detector[1])):
             start_time = time.time()
             SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[1] - DetectorBoundaryU1[1, :, :])
             InterceptsU1 = -SlopesU1 * Source[1] + Source[0]
@@ -834,7 +855,8 @@ class Reconstruction(object):
                                                         image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * (
                                     intersection_length / ray_normalization)
 
-        else:
+        elif (abs(dx / dz) >= abs(Source[0] - Detector[0]) / abs(Source[2] - Detector[2]) and
+              abs(dy / dz) >= abs(Source[1] - Detector[1]) / abs(Source[2] - Detector[2])):
             SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[2] - DetectorBoundaryU1[2, :, :])
             InterceptsU1 = -SlopesU1 * Source[2] + Source[0]
             SlopesU2 = (Source[0] - DetectorBoundaryU2[0, :, :]) / (Source[2] - DetectorBoundaryU2[2, :, :])
@@ -898,6 +920,9 @@ class Reconstruction(object):
                     proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane, Yplane,
                                                         image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * (
                                     intersection_length / ray_normalization)
+        else:
+            raise ErrorDescription(7)
+
         return proj
 
     @staticmethod
@@ -1067,9 +1092,9 @@ class Reconstruction(object):
         SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2))
         angle = np.linspace(StartAngle, EndAngle, nViews + 1)
         angle = theta[0:-1]
-        Xplane = (PhantomCenter[0] - (nx - 1) / 2.0 + range(0, nx)) * dx
-        Yplane = (PhantomCenter[1] - (ny - 1) / 2.0 + range(0, ny)) * dy
-        Zplane = (PhantomCenter[2] - (nz - 1) / 2.0 + range(0, nz)) * dz
+        Xplane = PhantomCenter[0] + (range(0, nx) - (nx - 1) / 2.0) * dx
+        Yplane = PhantomCenter[1] + (range(0, ny) - (ny - 1) / 2.0) * dy
+        Zplane = PhantomCenter[2] + (range(0, nz) - (nz - 1) / 2.0) * dz
         Xplane = Xplane - dx / 2
         Yplane = Yplane - dy / 2
         Zplane = Zplane - dz / 2
