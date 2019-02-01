@@ -718,8 +718,8 @@ class Reconstruction(object):
                     DetectorIndex[2, :, :] - Detector[2]) ** 2.0) / SDD)
         # ray_normalization = cos(ray_angles)
         ray_normalization = 1.0
-        if (abs(dy / dx) >= abs(Source[1] - Detector[1]) / abs(Source[0] - Detector[0]) and
-                abs(dz / dx) >= abs(Source[2] - Detector[2]) / abs(Source[0] - Detector[0])):
+        if (abs(dy / dx) >= abs(Source[1] - Detector[1]) / abs(Source[0] - Detector[0] + 1e-4) and
+                abs(dz / dx) >= abs(Source[2] - Detector[2]) / abs(Source[0] - Detector[0] + 1e-4)):
             SlopesU1 = (Source[1] - DetectorBoundaryU1[1, :, :]) / (Source[0] - DetectorBoundaryU1[0, :, :])
             InterceptsU1 = -SlopesU1 * Source[0] + Source[1]
             SlopesU2 = (Source[1] - DetectorBoundaryU2[1, :, :]) / (Source[0] - DetectorBoundaryU2[0, :, :])
@@ -786,8 +786,8 @@ class Reconstruction(object):
                                     intersection_length / ray_normalization)
 
 
-        elif (abs(dx / dy) >= abs(Source[0] - Detector[0]) / abs(Source[1] - Detector[1]) and
-              abs(dz / dy) >= abs(Source[2] - Detector[2]) / abs(Source[1] - Detector[1])):
+        elif (abs(dx / dy) >= abs(Source[0] - Detector[0]) / abs(Source[1] - Detector[1] + 1e-4) and
+              abs(dz / dy) >= abs(Source[2] - Detector[2]) / abs(Source[1] - Detector[1] + 1e-4)):
             start_time = time.time()
             SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[1] - DetectorBoundaryU1[1, :, :])
             InterceptsU1 = -SlopesU1 * Source[1] + Source[0]
@@ -855,8 +855,8 @@ class Reconstruction(object):
                                                         image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * (
                                     intersection_length / ray_normalization)
 
-        elif (abs(dx / dz) >= abs(Source[0] - Detector[0]) / abs(Source[2] - Detector[2]) and
-              abs(dy / dz) >= abs(Source[1] - Detector[1]) / abs(Source[2] - Detector[2])):
+        elif (abs(dx / dz) >= abs(Source[0] - Detector[0]) / abs(Source[2] - Detector[2] + 1e-4) and
+              abs(dy / dz) >= abs(Source[1] - Detector[1]) / abs(Source[2] - Detector[2] + 1e-4)):
             SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[2] - DetectorBoundaryU1[2, :, :])
             InterceptsU1 = -SlopesU1 * Source[2] + Source[0]
             SlopesU2 = (Source[0] - DetectorBoundaryU2[0, :, :]) / (Source[2] - DetectorBoundaryU2[2, :, :])
