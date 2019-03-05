@@ -8,7 +8,7 @@ def DefineGPUFuns():
     #include <stdio.h>
     #include "cuda_runtime.h"
     #include "device_launch_parameters.h"
-    #include "device_functions.h"
+    //#include "device_functions.h"
     #include "device_atomic_functions.h"
     
     __global__ void gpuInterpol1d(float* Dest, float* codomain,float* domain ,float* new_domain,float* params){
@@ -366,7 +366,7 @@ def DefineGPUFuns():
                         }else if(k==s_index_x){
                             weight1=(Xplane[k+1]-fminf(coord_x1,coord_x2))/fabsf(coord_x1-coord_x2);
                         }else if(k==e_index_x){
-                            weight1=(fmaxf(coord_x1,coord_x2)-Yplane[k])/fabsf(coord_x1-coord_x2);
+                            weight1=(fmaxf(coord_x1,coord_x2)-Xplane[k])/fabsf(coord_x1-coord_x2);
                         }else{
                             weight1=fabsf(dx)/fabsf(coord_x1-coord_x2);
                         }
