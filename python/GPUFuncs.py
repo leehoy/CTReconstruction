@@ -366,7 +366,7 @@ def DefineGPUFuns():
                         }else if(k==s_index_x){
                             weight1=(Xplane[k+1]-fminf(coord_x1,coord_x2))/fabsf(coord_x1-coord_x2);
                         }else if(k==e_index_x){
-                            weight1=(fmaxf(coord_x1,coord_x2)-Yplane[k])/fabsf(coord_x1-coord_x2);
+                            weight1=(fmaxf(coord_x1,coord_x2)-Xplane[k])/fabsf(coord_x1-coord_x2);
                         }else{
                             weight1=fabsf(dx)/fabsf(coord_x1-coord_x2);
                         }
