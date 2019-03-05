@@ -12,7 +12,7 @@ import numpy.matlib
 import pycuda.gpuarray
 from math import ceil
 import time
-from GPUFuncs import *
+from GPUFuncs_pycuda import *
 from numba import jit
 import logging
 
