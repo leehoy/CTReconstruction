@@ -13,6 +13,7 @@ import pycuda.gpuarray
 from math import ceil
 import time
 from GPUFuncs import *
+from numba import jit
 import logging
 
 # define logger
@@ -106,7 +107,7 @@ class Reconstruction(object):
         [du, dv] = self.params['DetectorPixelSize']
         [dx, dy, dz] = self.params['ImagePixelSpacing']
         [nx, ny, nz] = self.params['NumberOfImage']
-        #dv=-1.0*dv
+        # dv=-1.0*dv
         u = (np.arange(0, nu) - (nu - 1.0) / 2.0) * du
         v = (np.arange(0, nv) - (nv - 1.0) / 2.0) * dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
@@ -590,7 +591,7 @@ class Reconstruction(object):
         SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2.0))
         SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2.0))
         if (HelicalPitch > 0):
-            #P = HelicalPitch * (nv * dv * SAD) / SDD
+            # P = HelicalPitch * (nv * dv * SAD) / SDD
             P = HelicalPitch * (nv * dv)
             nViews = (EndAngle - StartAngle) / (2 * pi) * nViews
             log.debug(nViews)
@@ -606,9 +607,9 @@ class Reconstruction(object):
         # Xplane = (PhantomCenter[0] - (nx - 1) / 2.0 + range(0, nx + 1)) * dx
         # Yplane = (PhantomCenter[1] - (ny - 1) / 2.0 + range(0, ny + 1)) * dy
         # Zplane = (PhantomCenter[2] - (nz - 1) / 2.0 + range(0, nz + 1)) * dz
-        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1)-(nx-1)/2.0) * dx
-        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1)-(ny-1)/2.0) * dy
-        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1)-(nz-1)/2.0) * dz
+        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1) - (nx - 1) / 2.0) * dx
+        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1) - (ny - 1) / 2.0) * dy
+        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1) - (nz - 1) / 2.0) * dz
         Xplane = Xplane - dx / 2
         Yplane = Yplane - dy / 2
         Zplane = Zplane - dz / 2
@@ -635,9 +636,9 @@ class Reconstruction(object):
             # DetectorVectors = [eu, ev, ew]
             if (self.params['DetectorShape'] == 'Flat'):
                 [DetectorIndex, DetectorBoundary] = self.FlatDetectorConstruction(Source, Detector, SDD, angle[i])
-                #print(DetectorBoundary.shape)
-                #print(DetectorIndex[0,128,:])
-                #sys.exit()
+                # print(DetectorBoundary.shape)
+                # print(DetectorIndex[0,128,:])
+                # sys.exit()
             elif (self.params['DetectorShape'] == 'Curved'):
                 [DetectorIndex, DetectorBoundary] = self.CurvedDetectorConstruction(Source, Detector, SDD, angle[i])
             else:
