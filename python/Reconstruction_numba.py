@@ -1,13 +1,11 @@
-import os, sys, glob, time, logging
+import logging, sys, time, os
+from math import ceil
+
 import numpy as np
 import numpy.matlib
-from scipy.interpolate import interp2d, griddata
-import matplotlib.pyplot as plt
-import numpy.matlib
-from math import ceil
 from GPUFuncs_numba import *
+from scipy.interpolate import interp2d
 from numba import cuda
-from numba import jit
 
 # define logger
 logging.basicConfig(level=logging.DEBUG)
@@ -39,16 +37,40 @@ real = np.real
 class Reconstruction(object):
 
     def __init__(self, params):
-        self.params = {'SourceInit': [0, 0, 0], 'DetectorInit': [0, 0, 0], 'StartAngle': 0,
-                       'EndAngle': 0, 'NumberOfDetectorPixels': [0, 0], 'DetectorPixelSize': [0, 0],
-                       'NumberOfViews': 0, 'ImagePixelSpacing': [0, 0, 0], 'NumberOfImage': [0, 0, 0],
-                       'PhantomCenter': [0, 0, 0], 'Origin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak',
-                       'cutoff': 1, 'GPU': 0, 'DetectorShape': 'Flat', 'Pitch': 0}
+        self.params = {'SourceInit': [0, 0, 0], 'DetectorInit': [0, 0, 0], 'StartAngle': 0, 'EndAngle': 0,
+                       'NumberOfDetectorPixels': [0, 0], 'DetectorPixelSize': [0, 0], 'NumberOfViews': 0,
+                       'ImagePixelSpacing': [0, 0, 0], 'NumberOfImage': [0, 0, 0], 'PhantomCenter': [0, 0, 0],
+                       'RotationOrigin': [0, 0, 0], 'ReconCenter': [0, 0, 0], 'Method': 'Distance',
+                       'FilterType': 'ram-lak', 'cutoff': 1, 'GPU': 0, 'DetectorShape': 'Flat', 'Pitch': 0}
         self.params = params
+        [self.nu, self.nv] = self.params['NumberOfDetectorPixels']
+        [self.du, self.dv] = self.params['DetectorPixelSize']
+        [self.nx, self.ny, self.nz] = self.params['NumberOfImage']
+        [self.dx, self.dy, self.dz] = self.params['ImagePixelSpacing']
+        self.Origin = np.array(self.params['RotationOrigin'])
+        self.PhantomCenter = np.array(self.params['PhantomCenter'])
+        self.cutoff = self.params['cutoff']
+        self.DetectorShape = self.params['DetectorShape']
+        self.P = self.params['Pitch']
+        self.Source = np.array(self.params['SourceInit'])
+        self.Detector = np.array(self.params['DetectorInit'])
+        self.SAD = np.sqrt(np.sum((self.Source - self.Origin) ** 2.0))
+        self.SDD = np.sqrt(np.sum((self.Source - self.Detector) ** 2.0))
+        self.HelicalTrans = self.P * (self.nv * self.dv) * self.SAD / self.SDD
+        self.nView = self.params['NumberOfViews']
+        self.sAngle = self.params['StartAngle']
+        self.eAngle = self.params['EndAngle']
+        self.Proj2pi = self.nView / ((self.eAngle - self.sAngle) / (2 * pi))
+        self.Method = self.params['Method']
+        self.FilterType = self.params['FilterType']
+        self.source_z0 = self.Source[2]
+        self.detector_z0 = self.Detector[2]
+        self.ReconCenter = self.params['ReconCenter']
+        if self.params['GPU'] == 1:
+            self.GPU = True
+        else:
+            self.GPU = False
 
-    #         start_time = time.time()
-    #         self.proj = self.LoadProj(filename, [self.params['NumberOfViews'], self.params['NumberOfDetectorPixels'][1], self.params['NumberOfDetectorPixels'][0]], dtype=np.float32)
-    # print('File load: ' + str(time.time() - start_time))
     def LoadProj(self, filename, image_size, dtype=np.float32):
         self.proj = np.fromfile(filename, dtype=dtype).reshape(image_size)
         # return proj
@@ -63,32 +85,42 @@ class Reconstruction(object):
     def SaveRecon(self, filename):
         self.image.tofile(filename, sep='', format='')
 
+    def FlipProj(self, dir):
+        try:
+            if (dir == 0):
+                # v-direction flip
+                for i in range(self.proj.shape[0]):
+                    self.proj[i, :, :] = np.flipud(self.proj[i, :, :])
+            elif (dir == 1):
+                # u-direction fli
+                for i in range(self.proj.shape[0]):
+                    self.proj[i, :, :] = np.fliplr(self.proj[i, :, :])
+            else:
+                raise ErrorDescription(4)
+        except ErrorDescription as e:
+            print(e)
+
     def CurvedDetectorConstruction(self, Source, DetectorCenter, SDD, angle):
         eu = [cos(angle), sin(angle), 0]
         ew = [sin(angle), -cos(angle), 0]
         ev = [0, 0, 1]
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        da = du / SDD
-        u = (np.arange(0, nu) - (nu - 1) / 2.0) * da
-        v = (np.arange(0, nv) - (nv - 1) / 2.0) * dv
+        self.da = self.du / self.SDD
+        # self.du = self.da
+        u = (np.arange(0, self.nu) - (self.nu - 1) / 2.0) * self.da
+        v = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * self.dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
         U, V = np.meshgrid(u, v)
         # V, U = np.meshgrid(v, u)
         DetectorIndex[0, :, :] = Source[0] + SDD * sin(U) * eu[0] + SDD * cos(U) * ew[0] - V * ev[0]
         DetectorIndex[1, :, :] = Source[1] + SDD * sin(U) * eu[1] + SDD * cos(U) * ew[1] - V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + SDD * sin(U) * eu[2] + SDD * cos(U) * ew[2] - V * ev[2]
-        u2 = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * da - da / 2.0
-        v2 = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv - dv / 2.0
+        u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.da - self.da / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
         DetectorBoundary[0, :, :] = Source[0] + SDD * sin(U2) * eu[0] + SDD * cos(U2) * ew[0] - V2 * ev[0]
         DetectorBoundary[1, :, :] = Source[1] + SDD * sin(U2) * eu[1] + SDD * cos(U2) * ew[1] - V2 * ev[1]
         DetectorBoundary[2, :, :] = Source[2] + SDD * sin(U2) * eu[2] + SDD * cos(U2) * ew[2] - V2 * ev[2]
-        # for uu in range(len(DetectorLength[0])):
-        #     for vv in range(len(DetectorLength[1])):
-        #         DetectorIndex[:, uu, vv] = Source[0] + SDD * sin(DetectorLength[0][uu]) * eu + Source[1] + SDD * cos(
-        #             DetectorLength[0][uu]) * ew + Source[3] + DetectorLength[1][vv] * ev
 
         return DetectorIndex, DetectorBoundary
 
@@ -98,13 +130,13 @@ class Reconstruction(object):
         eu = [cos(angle), sin(angle), 0]
         ew = [sin(angle), -cos(angle), 0]
         ev = [0.0, 0.0, 1.0]
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
+        # [nu, nv] = self.params['NumberOfDetectorPixels']
+        # [du, dv] = self.params['DetectorPixelSize']
+        # [dx, dy, dz] = self.params['ImagePixelSpacing']
+        # [nx, ny, nz] = self.params['NumberOfImage']
         # dv=-1.0*dv
-        u = (np.arange(0, nu) - (nu - 1.0) / 2.0) * du
-        v = (np.arange(0, nv) - (nv - 1.0) / 2.0) * dv
+        u = (np.arange(0, self.nu) - (self.nu - 1.0) / 2.0) * self.du
+        v = (np.arange(0, self.nv) - (self.nv - 1.0) / 2.0) * self.dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
 
         # U, V = np.meshgrid(u, v)
@@ -112,8 +144,8 @@ class Reconstruction(object):
         DetectorIndex[0, :, :] = Source[0] + U * eu[0] + SDD * ew[0] - V * ev[0]
         DetectorIndex[1, :, :] = Source[1] + U * eu[1] + SDD * ew[1] - V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] - V * ev[2]
-        u2 = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du - du / 2.0
-        v2 = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv - dv / 2.0
+        u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.du - self.du / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
         DetectorBoundary[0, :, :] = Source[0] + U2 * eu[0] + SDD * ew[0] - V2 * ev[0]
@@ -175,126 +207,96 @@ class Reconstruction(object):
         return filter
 
     def Filtering(self):
-        [du, dv] = self.params['DetectorPixelSize']
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        ZeroPaddedLength = int(2.0 ** (ceil(log2(2.0 * (nu - 1)))))
-        ki = (np.arange(0, nu + 1) - nu / 2.0) * du
-        p = (np.arange(0, nv + 1) - nv / 2.0) * dv
+        # [du, dv] = self.params['DetectorPixelSize']
+        # [nu, nv] = self.params['NumberOfDetectorPixels']
+        ZeroPaddedLength = int(2.0 ** (ceil(log2(2.0 * (self.nu - 1)))))
+        ki = (np.arange(0, self.nu + 1) - self.nu / 2.0) * self.du
+        p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * self.dv
         for i in range(self.proj.shape[0]):
-            self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p, self.params)
+            self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p)
 
-    def backward(self):
-        nViews = self.params['NumberOfViews']
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
-        cutoff = self.params['cutoff']
-        FilterType = self.params['FilterType']
-        dy = -1 * dy
-        dz = -1 * dz
-        dv = -1 * dv
-        Source_Init = np.array(self.params['SourceInit'])
-        Detector_Init = np.array(self.params['DetectorInit'])
-        StartAngle = self.params['StartAngle']
-        EndAngle = self.params['EndAngle']
-        Origin = np.array(self.params['Origin'])
-        PhantomCenter = np.array(self.params['PhantomCenter'])
-        gpu = self.params['GPU']
-        SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2.0))
-        SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2.0))
-        # Calculates detector center
-        # angle = np.linspace(StartAngle, EndAngle, nViews + 1)
-        # angle = angle[0:-1]
-        # dtheta = angle[1] - angle[0]
-        # deltaS = du * SAD / SDD
-        # Xplane = (PhantomCenter[0] - nx / 2 + range(0, nx + 1)) * dx
-        # Yplane = (PhantomCenter[1] - ny / 2 + range(0, ny + 1)) * dy
-        # Zplane = (PhantomCenter[2] - nz / 2 + range(0, nz + 1)) * dz
-        # Xpixel = Xplane[0:-1]
-        # Ypixel = Yplane[0:-1]
-        # Zpixel = Zplane[0:-1]
-        # ki = (np.arange(0, nu + 1) - nu / 2.0) * du
-        # p = (np.arange(0, nv + 1) - nv / 2.0) * dv
-        alpha = 0
-        beta = 0
-        gamma = 0
-        eu = [cos(gamma) * cos(alpha), sin(alpha), sin(gamma)]
-        ev = [cos(gamma) * -sin(alpha), cos(gamma) * cos(alpha), sin(gamma)]
-        ew = [0, 0, 1]
-        # print('Variable initialization: ' + str(time.time() - start_time))
-        # Source = np.array([-SAD * sin(angle[0]), SAD * cos(angle[0]), 0])  # z-direction rotation
-        # Detector = np.array([(SDD - SAD) * sin(angle[0]), -(SDD - SAD) * cos(angle[0]), 0])
-        # DetectorLength = np.array(
-        #    [np.arange(floor(-nu / 2), floor(nu / 2) + 1) * du, np.arange(floor(-nv / 2), floor(nv / 2) + 1) * dv])
-        # DetectorVectors = [eu, ev, ew]
-        # DetectorIndex = self.DetectorConstruction(Detector, DetectorLength, DetectorVectors, angle[0])
-        recon = np.zeros([nz, ny, nx], dtype=np.float32)
-        # plt.plot(ki)
-        # plt.show()
-        start_time = time.time()
-        if (self.params['Method'] == 'Distance'):
-            recon = self.distance_backproj()
-        elif (self.params['Method'] == 'Ray'):
-            pass
-            # recon = self.ray(DetectorIndex, Source, Detector, angle)
-        self.image = recon
-
-    @staticmethod
-    def filter_proj(proj, ki, p, params):
-        [du, dv] = params['DetectorPixelSize']
-        [nu, nv] = params['NumberOfDetectorPixels']
+    def filter_proj(self, proj, ki, p):
+        # [du, dv] = params['DetectorPixelSize']
+        # [nu, nv] = params['NumberOfDetectorPixels']
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -self.dv
         ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
-        R = sqrt(np.sum((np.array(params['SourceInit']) - np.array(params['PhantomCenter'])) ** 2.0))
-        D = sqrt(np.sum((np.array(params['DetectorInit']) - np.array(params['PhantomCenter'])) ** 2.0))
-        # print(ki.shape, p.shape)
+        R = self.SAD
+        D = self.SDD
+
         [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
         weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
 
         deltaS = du * R / (R + D)
         filter = Reconstruction.Filter(
-            ZeroPaddedLength + 1, du * R / (D + R), params['FilterType'], params['cutoff'])
+            ZeroPaddedLength + 1, du * R / (D + R), self.FilterType, self.cutoff)
         weightd_proj = weight * proj
         Q = np.zeros(weightd_proj.shape, dtype=np.float32)
         for k in range(nv):
-            tmp = real(ifft(
-                ifftshift(filter * fftshift(fft(weightd_proj[k, :], ZeroPaddedLength)))))
+            tmp = real(ifft(ifftshift(filter * fftshift(fft(weightd_proj[k, :], ZeroPaddedLength)))))
             Q[k, :] = tmp[0:nu] * deltaS
 
         return Q
 
-    def distance_backproj(self):
+    def backward(self):
+        recon = np.zeros([self.nz, self.ny, self.nx], dtype=np.float32)
+        start_time = time.time()
+        if self.Method == 'Distance':
+            recon = self.distance_backproj()
+        elif self.Method == 'Ray':
+            pass
+            # recon = self.ray_backproj(DetectorIndex, Source, Detector, angle)
+        self.image = recon
+
+    def ray_backproj(self):
         # proj should be filtered data
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
-        Source = self.params['SourceInit']
-        Detector = self.params['DetectorInit']
-        R = sqrt(np.sum((np.array(Source) - np.array(self.params['PhantomCenter'])) ** 2.0))
+
         rotation_vector = [0, 0, 1]
-        dy = -1 * dy
-        dz = -1 * dz
-        dv = -1 * dv
-        nViews = self.params['NumberOfViews']
-        StartAngle = self.params['StartAngle']
-        EndAngle = self.params['EndAngle']
-        angle = np.linspace(StartAngle, EndAngle, nViews + 1)
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -1 * self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = -1 * self.dy
+        dz = -1 * self.dz
+        nViews = self.nView
+        R = self.SAD
+        D = self.SDD
+        sAngle = self.sAngle
+        eAngle = self.eAngle
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
         angle = angle[0:-1]
-        PhantomCenter = self.params['PhantomCenter']
+        Source = self.Source
+        Detector = self.Detector
+        source_z0 = self.source_z0
+        detector_z0 = self.detector_z0
+        H = self.HelicalTrans
+        PhantomCenter = self.PhantomCenter
+        ReconCenter = self.ReconCenter
+        if self.DetectorShape == 'Curved':
+            du = du / D
+            ray_backproj_arb = curved_ray_backproj_arb
+        elif self.DetectorShape == 'Flat':
+            ray_backproj_arb = flat_ray_backproj_arb
+        else:
+            print('Detector shape is not supported')
+            sys.exit()
         dtheta = angle[1] - angle[0]
-        Xpixel = PhantomCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
-        Ypixel = PhantomCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
-        Zpixel = PhantomCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
+        Xpixel = ReconCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
+        Ypixel = ReconCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
+        Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
         ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
-        if self.params['GPU']:
+        if self.GPU:
             device = cuda.get_current_device()
             MAX_THREAD_PER_BLOCK = device.MAX_THREADS_PER_BLOCK
             MAX_GRID_DIM_X = device.MAX_GRID_DIM_X
-            # MAX_THREAD_PER_BLOCK = attrs[pycuda._driver.device_attribute.MAX_THREADS_PER_BLOCK]
-            # MAX_GRID_DIM_X = attrs[pycuda._driver.device_attribute.MAX_GRID_DIM_X]
             TotalSize = nx * ny * nz
             if (TotalSize < MAX_THREAD_PER_BLOCK):
                 blockX = nx * ny * nz
@@ -317,8 +319,6 @@ class Reconstruction(object):
                     sys.exit()
             threadsperblock = (blockX, blockY, blockZ)
             blockspergrid = (gridX, gridY)
-            # distance_backproj_arb = distance_backproj_arb
-            # distance_backproj_arb = mod.get_function("distance_backproj_arb")
 
             dest = cuda.device_array(recon.flatten().shape, dtype=np.float32)
             x_pixel_gpu = cuda.to_device(Xpixel.astype(np.float32))
@@ -326,19 +326,9 @@ class Reconstruction(object):
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
             u_plane_gpu = cuda.to_device(ki.astype(np.float32))
             v_plane_gpu = cuda.to_device(p.astype(np.float32))
-
-            # dest = pycuda.gpuarray.to_gpu(recon.flatten().astype(np.float32))
-            # x_pixel_gpu = pycuda.gpuarray.to_gpu(Xpixel.astype(np.float32))
-            # y_pixel_gpu = pycuda.gpuarray.to_gpu(Ypixel.astype(np.float32))
-            # z_pixel_gpu = pycuda.gpuarray.to_gpu(Zpixel.astype(np.float32))
-            # u_plane_gpu = pycuda.gpuarray.to_gpu(ki.astype(np.float32))
-            # v_plane_gpu = pycuda.gpuarray.to_gpu(p.astype(np.float32))
-            recon_param = np.array(
-                [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
-                 Detector[2], angle[0], 0.0, R]).astype(np.float32)
-            recon_param_gpu = cuda.to_device(recon_param)
-            # recon_param_gpu = drv.mem_alloc(recon_param.nbytes)
             for i in range(nViews):
+                Source[2] = source_z0 + H * angle[i] / (2 * pi)
+                Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 Q = self.proj[i, :, :] * dtheta
                 Q = Q.flatten().astype(np.float32)
                 Q_gpu = cuda.to_device(Q)
@@ -346,38 +336,145 @@ class Reconstruction(object):
                     [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                      Detector[2], angle[i], 0.0, R]).astype(np.float32)
                 recon_param_gpu = cuda.to_device(recon_param)
-                # recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param)
-                # drv.memcpy_htod(recon_param_gpu, recon_param)
-                distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
-                                                                      z_pixel_gpu, u_plane_gpu, v_plane_gpu,
-                                                                      recon_param_gpu)
-                del recon_param_gpu
-            del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu
+                ray_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
+                                                                 z_pixel_gpu, u_plane_gpu, v_plane_gpu,
+                                                                 recon_param_gpu)
+            del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
             recon = dest.copy_to_host().reshape([nz, ny, nx]).astype(np.float32)
             # recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
             del dest
         else:
             for i in range(nViews):
                 Q = self.proj[i, :, :]
-                recon += self._distance_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle[i], 0.0,
-                                                     self.params) * dtheta
+                recon += self._ray_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle[i], 0.0,
+                                                self.params) * dtheta
         return recon
 
-    @staticmethod
-    def _distance_backproj_arb(proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle1, angle2, params):
+    def distance_backproj(self):
+        # proj should be filtered data
+
+        rotation_vector = [0, 0, 1]
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -1 * self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = -1 * self.dy
+        dz = -1 * self.dz
+        nViews = self.nView
+        R = self.SAD
+        D = self.SDD
+        sAngle = self.sAngle
+        eAngle = self.eAngle
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
+        angle = angle[0:-1]
+        Source = self.Source
+        Detector = self.Detector
+        source_z0 = self.source_z0
+        detector_z0 = self.detector_z0
+        H = self.HelicalTrans
+        PhantomCenter = self.PhantomCenter
+        ReconCenter = self.ReconCenter
+        if self.DetectorShape == 'Curved':
+            du = du / D
+            distance_backproj_arb = curved_distance_backproj_arb
+        elif self.DetectorShape == 'Flat':
+            distance_backproj_arb = flat_distance_backproj_arb
+        else:
+            print('Detector shape is not supported')
+            sys.exit()
+        dtheta = angle[1] - angle[0]
+        Xpixel = ReconCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
+        Ypixel = ReconCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
+        Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
+        ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
+        p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
+        recon = np.zeros([nz, ny, nx], dtype=np.float32)
+        if self.GPU:
+            device = cuda.get_current_device()
+            MAX_THREAD_PER_BLOCK = device.MAX_THREADS_PER_BLOCK
+            MAX_GRID_DIM_X = device.MAX_GRID_DIM_X
+            TotalSize = nx * ny * nz
+            if (TotalSize < MAX_THREAD_PER_BLOCK):
+                blockX = nx * ny * nz
+                blockY = 1
+                blockZ = 1
+                gridX = 1
+                gridY = 1
+            else:
+                blockX = 32
+                blockY = 32
+                blockZ = 1
+                GridSize = ceil(TotalSize / (blockX * blockY))
+                try:
+                    if (GridSize < MAX_GRID_DIM_X):
+                        [gridX, gridY] = Reconstruction._optimalGrid(GridSize)
+                    else:
+                        raise ErrorDescription(6)
+                except ErrorDescription as e:
+                    print(e)
+                    sys.exit()
+            threadsperblock = (blockX, blockY, blockZ)
+            blockspergrid = (gridX, gridY)
+
+            dest = cuda.device_array(recon.flatten().shape, dtype=np.float32)
+            x_pixel_gpu = cuda.to_device(Xpixel.astype(np.float32))
+            y_pixel_gpu = cuda.to_device(Ypixel.astype(np.float32))
+            z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
+            u_plane_gpu = cuda.to_device(ki.astype(np.float32))
+            v_plane_gpu = cuda.to_device(p.astype(np.float32))
+            for i in range(nViews):
+                Source[2] = source_z0 + H * angle[i] / (2 * pi)
+                Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
+                Q = self.proj[i, :, :] * dtheta
+                Q = Q.flatten().astype(np.float32)
+                Q_gpu = cuda.to_device(Q)
+                recon_param = np.array(
+                    [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
+                     Detector[2], angle[i], 0.0, R]).astype(np.float32)
+                recon_param_gpu = cuda.to_device(recon_param)
+                distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
+                                                                      z_pixel_gpu, u_plane_gpu, v_plane_gpu,
+                                                                      recon_param_gpu)
+            del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
+            recon = dest.copy_to_host().reshape([nz, ny, nx]).astype(np.float32)
+            # recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
+            del dest
+        else:
+            for i in range(nViews):
+                Source[2] = source_z0 + H * angle[i] / (2 * pi)
+                Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
+                Q = self.proj[i, :, :]
+                recon += self._distance_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle[i], 0.0, ) * dtheta
+        return recon
+
+    def _distance_backproj_arb(self, proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle1, angle2):
         tol_min = 1e-6
-        [nu, nv] = params['NumberOfDetectorPixels']
-        [du, dv] = params['DetectorPixelSize']
-        [dx, dy, dz] = params['ImagePixelSpacing']
-        [nx, ny, nz] = params['NumberOfImage']
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = self.dy
+        dz = self.dz
         dx = -1 * dx
         dy = -1 * dy
         dv = -1 * dv
         # angle1: rotation angle between point and X-axis
         # angle2: rotation angle between point and XY-palne
-        Source = np.array(params['SourceInit'])
-        Detector = np.array(params['DetectorInit'])
-        R = sqrt(np.sum((np.array(Source) - np.array(params['PhantomCenter'])) ** 2.0))
+        Source = self.Source
+        Detector = self.Detector
+        Origin = self.Origin
+        R = self.SAD
+        Source[2] = self.source_z0 + self.HelicalTrans * angle1 / (2 * pi)
+        Detector[2] = self.detector_z0 + self.HelicalTrans * angle1 / (2 * pi)
+        DetectorShape = self.DetectorShape
         recon_pixelsX = Xpixel
         recon_pixelsY = Ypixel
         recon_pixelsZ = Zpixel
@@ -391,11 +488,9 @@ class Reconstruction(object):
         for i in range(nz):
             for j in range(ny):
                 for k in range(nx):
-                    #                     l = sqrt(recon_pixelsX[k] ** 2 + recon_pixelsY[j] ** 2 + recon_pixelsZ[i] ** 2)
                     xc = fx(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
                     yc = fy(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
                     zc = fz(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
-                    #                     yc = -(recon_pixelsX[k]) * sin(angle) + (recon_pixelsY[j]) * cos(angle)
                     x1 = fx((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
                     y1 = fy((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
                     z1 = fz((recon_pixelsX[k] - dx / 2), (recon_pixelsY[j] - dy / 2), recon_pixelsZ[i] - dz / 2)
@@ -439,8 +534,15 @@ class Reconstruction(object):
                     slopes_u = [slope_u1, slope_u2, slope_u3, slope_u4, slope_u5, slope_u6, slope_u7, slope_u8]
                     slope_l = min(slopes_u)
                     slope_r = max(slopes_u)
-                    coord_u1 = (slope_l * Detector[1]) + (Source[0] - slope_r * Source[1])
-                    coord_u2 = (slope_r * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    if DetectorShape == 'Flat':
+                        coord_u1 = (slope_l * Detector[1]) + (Source[0] - slope_r * Source[1])
+                        coord_u2 = (slope_r * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    elif DetectorShape == 'Curvced':
+                        coord_u1 = -atan(slope_l)
+                        coord_u2 = -atan(slope_r)
+                    else:
+                        print('Detector shape is not supported')
+                        sys.exit()
                     u_l = floor((coord_u1 - Uplane[0]) / du)
                     u_r = floor((coord_u2 - Uplane[0]) / du)
                     s_index_u = int(min(u_l, u_r))
@@ -464,97 +566,94 @@ class Reconstruction(object):
                     s_index_v = int(min(v_l, v_r))
                     e_index_v = int(min(v_l, v_r))
                     for l in range(s_index_v, e_index_v + 1):
-                        if (l < 0 or l > nu):
+                        if l < 0 or l > nu:
                             continue
-                        if (s_index_v == e_index_v):
+                        if s_index_v == e_index_v:
                             weight1 = 1.0
-                        elif (l == s_index_v):
+                        elif l == s_index_v:
                             weight1 = (max(coord_v1, coord_v2) - Vplane[l + 1]) / abs(coord_v1 - coord_v2)
-                        elif (l == e_index_v):
+                        elif l == e_index_v:
                             weight1 = (Vplane[l] - min(coord_v1, coord_v2)) / abs(coord_v1 - coord_v2)
                         else:
                             weight1 = abs(dv) / abs(coord_v1 - coord_v2)
                         for m in range(s_index_u, e_index_u + 1):
-                            if (m < 0 or m > nv):
+                            if m < 0 or m > nv:
                                 continue
-                            if (s_index_u == e_index_u):
+                            if s_index_u == e_index_u:
                                 weight2 = 1.0
-                            elif (m == s_index_u):
+                            elif m == s_index_u:
                                 weight2 = (Uplane[k + 1] - min(coord_u1, coord_u2)) / abs(coord_u1 - coord_u2)
-                            elif (m == e_index_u):
+                            elif m == e_index_u:
                                 weight2 = (max(coord_u1, coord_u2) - Uplane[k]) / abs(coord_u1 - coord_u2)
                             else:
                                 weight2 = abs(du) / abs(coord_u1 - coord_u2)
                             recon[i][j][k] += proj[l][m] * weight1 * weight2 * (R ** 2) / (R - yc) ** 2
         return recon
 
-    @staticmethod
-    def _distance_backproj_about_z(proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle, params):
+    def _ray_backproj_arb(self, proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle1, angle2):
         tol_min = 1e-6
-        [nu, nv] = params['NumberOfDetectorPixels']
-        [du, dv] = params['DetectorPixelSize']
-        [dx, dy, dz] = params['ImagePixelSpacing']
-        [nx, ny, nz] = params['NumberOfImage']
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = self.dy
+        dz = self.dz
         dx = -1 * dx
         dy = -1 * dy
         dv = -1 * dv
-        #         SAD = params['SAD']
-        #         SDD = parasm['SDD']
-        Source = np.array(params['SourceInit'])
-        Detector = np.array(params['DetectorInit'])
-        R = sqrt(np.sum((np.array(Source) - np.array(params['PhantomCenter'])) ** 2))
+        # angle1: rotation angle between point and X-axis
+        # angle2: rotation angle between point and XY-palne
+        Source = self.Source
+        Detector = self.Detector
+        Origin = self.Origin
+        R = self.SAD
+        Source[2] = self.source_z0 + self.HelicalTrans * angle1 / (2 * pi)
+        Detector[2] = self.detector_z0 + self.HelicalTrans * angle1 / (2 * pi)
+        DetectorShape = self.DetectorShape
         recon_pixelsX = Xpixel
         recon_pixelsY = Ypixel
         recon_pixelsZ = Zpixel
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
-        #         recon_pixelsX = Xplane[0:-1] + dx / 2
-        #         recon_pixelsY = Yplane[0:-1] + dy / 2
-        #         recon_pixelsZ = Zplane[0:-1] + dz / 2
-        #         [reconY, reconX] = np.meshgrid(recon_pixelsY, recon_pixlesZ)
-        #         reconX_c1 = (reconX + dx / 2) * cos(angle) + (reconY + dy / 2) * sin(angle)
-        #         reconX_c2 = (reconX - dx / 2) * cos(angle) + (reconY - dy / 2) * sin(angle)
-        #         reconX_c3 = (reconX + dx / 2) * cos(angle) + (reconY - dy / 2) * sin(angle)
-        #         reconX_c4 = (reconX - dx / 2) * cos(angle) + (reconY + dy / 2) * sin(angle)
-        #
-        #         reconY_c1 = -(reconX + dx / 2) * sin(angle) + (reconY + dy / 2) * cos(angle)
-        #         reconY_c2 = -(reconX - dx / 2) * sin(angle) + (reconY - dy / 2) * cos(angle)
-        #         reconY_c3 = -(reconX + dx / 2) * sin(angle) + (reconY - dy / 2) * cos(angle)
-        #         reconY_c4 = -(reconX - dx / 2) * sin(angle) + (reconY + dy / 2) * cos(angle)
-        #
-        #         SlopeU_c1 = (Source[0] - reconX_c1) / (Source[1] - reconY_c1)
-        #         SlopeU_c2 = (Source[0] - reconX_c2) / (Source[1] - reconY_c2)
-        #         SlopeU_c3 = (Source[0] - reconX_c3) / (Source[1] - reconY_c3)
-        #         SlopeU_c4 = (Source[0] - reconX_c4) / (Source[1] - reconY_c4)
-        #         [reconZ, reconY] = np.meshgrid
+        f_angle = lambda x, y: atan(x / y) if y != 0 else atan(0) if x == 0 else -pi / 2 if x < 0 else pi / 2
+        fx = lambda x, y, z: x * cos(angle2) * cos(angle1) + y * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(
+            angle1) * sin(f_angle(x, y)) - z * sin(angle2) * sin(angle1) * cos(f_angle(x, y))
+        fy = lambda x, y, z: y * cos(angle2) * cos(angle1) - x * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(
+            angle1) * cos(f_angle(x, y)) + z * sin(angle2) * sin(angle1) * sin(f_angle(x, y))
+        fz = lambda x, y, z: z * cos(angle2) + sqrt(x ** 2 + y ** 2) * sin(angle2)
         for i in range(nz):
             for j in range(ny):
                 for k in range(nx):
-                    yc = -(recon_pixelsX[k]) * sin(angle) + (recon_pixelsY[j]) * cos(angle)
-                    x1 = (recon_pixelsX[k] + dx / 2) * cos(angle) + (recon_pixelsY[j] + dy / 2) * sin(angle)
-                    y1 = -(recon_pixelsX[k] + dx / 2) * sin(angle) + (recon_pixelsY[j] + dy / 2) * cos(angle)
-                    slope1 = (Source[0] - x1) / (Source[1] - y1)
-                    x2 = (recon_pixelsX[k] - dx / 2) * cos(angle) + (recon_pixelsY[j] - dy / 2) * sin(angle)
-                    y2 = -(recon_pixelsX[k] - dx / 2) * sin(angle) + (recon_pixelsY[j] - dy / 2) * cos(angle)
-                    slope2 = (Source[0] - x2) / (Source[1] - y2)
-                    x3 = (recon_pixelsX[k] + dx / 2) * cos(angle) + (recon_pixelsY[j] - dy / 2) * sin(angle)
-                    y3 = -(recon_pixelsX[k] + dx / 2) * sin(angle) + (recon_pixelsY[j] - dy / 2) * cos(angle)
-                    slope3 = (Source[0] - x3) / (Source[1] - y3)
-                    x4 = (recon_pixelsX[k] - dx / 2) * cos(angle) + (recon_pixelsY[j] + dy / 2) * sin(angle)
-                    y4 = -(recon_pixelsX[k] - dx / 2) * sin(angle) + (recon_pixelsY[j] + dy / 2) * cos(angle)
-                    slope4 = (Source[0] - x4) / (Source[1] - y4)
-                    slopes_u = [slope1, slope2, slope3, slope4]
-                    slope_l = min(slopes_u)
-                    slope_r = max(slopes_u)
-                    coord_u1 = (slope_l * Detector[1]) + (Source[0] - slope_r * Source[1])
-                    coord_u2 = (slope_r * Detector[1]) + (Source[0] - slope_r * Source[1])
+                    xc = fx(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+                    yc = fy(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+                    zc = fz(recon_pixelsX[k], recon_pixelsY[j], recon_pixelsZ[i])
+
+                    slope_uc = (Source[0] - xc) / (Source[1] - yc)
+                    if DetectorShape == 'Flat':
+                        coord_uc = (slope_uc * Detector[1]) + (Source[0] - slope_uc * Source[1])
+                    elif DetectorShape == 'Curvced':
+                        coord_uc = -atan(slope_uc)
+
+                    else:
+                        print('Detector shape is not supported')
+                        sys.exit()
                     u_l = floor((coord_u1 - Uplane[0]) / du)
                     u_r = floor((coord_u2 - Uplane[0]) / du)
                     s_index_u = int(min(u_l, u_r))
                     e_index_u = int(max(u_l, u_r))
 
-                    z1 = recon_pixelsZ[i] - dz / 2
-                    z2 = recon_pixelsZ[i] + dz / 2
-                    slopes_v = [(Source[2] - z1) / (Source[1] - yc), (Source[2] - z2) / (Source[1] - yc)]
+                    slope_v1 = (Source[2] - z1) / (Source[1] - y1)
+                    slope_v2 = (Source[2] - z2) / (Source[1] - y2)
+                    slope_v3 = (Source[2] - z3) / (Source[1] - y3)
+                    slope_v4 = (Source[2] - z4) / (Source[1] - y4)
+                    slope_v5 = (Source[2] - z5) / (Source[1] - y5)
+                    slope_v6 = (Source[2] - z6) / (Source[1] - y6)
+                    slope_v7 = (Source[2] - z7) / (Source[1] - y7)
+                    slope_v8 = (Source[2] - z8) / (Source[1] - y8)
+                    slopes_v = [slope_v1, slope_v2, slope_v3, slope_v4, slope_v5, slope_v6, slope_v7, slope_v8]
                     slope_t = min(slopes_v)
                     slope_b = max(slopes_v)
                     coord_v1 = (slope_t * Detector[2]) + (Source[2] - slope_t * Source[1])
@@ -564,20 +663,24 @@ class Reconstruction(object):
                     s_index_v = int(min(v_l, v_r))
                     e_index_v = int(min(v_l, v_r))
                     for l in range(s_index_v, e_index_v + 1):
-                        if (s_index_v == e_index_v):
+                        if l < 0 or l > nu:
+                            continue
+                        if s_index_v == e_index_v:
                             weight1 = 1.0
-                        elif (l == s_index_v):
+                        elif l == s_index_v:
                             weight1 = (max(coord_v1, coord_v2) - Vplane[l + 1]) / abs(coord_v1 - coord_v2)
-                        elif (l == e_index_v):
+                        elif l == e_index_v:
                             weight1 = (Vplane[l] - min(coord_v1, coord_v2)) / abs(coord_v1 - coord_v2)
                         else:
                             weight1 = abs(dv) / abs(coord_v1 - coord_v2)
                         for m in range(s_index_u, e_index_u + 1):
-                            if (s_index_u == e_index_u):
+                            if m < 0 or m > nv:
+                                continue
+                            if s_index_u == e_index_u:
                                 weight2 = 1.0
-                            elif (m == s_index_u):
+                            elif m == s_index_u:
                                 weight2 = (Uplane[k + 1] - min(coord_u1, coord_u2)) / abs(coord_u1 - coord_u2)
-                            elif (m == e_index_u):
+                            elif m == e_index_u:
                                 weight2 = (max(coord_u1, coord_u2) - Uplane[k]) / abs(coord_u1 - coord_u2)
                             else:
                                 weight2 = abs(du) / abs(coord_u1 - coord_u2)
@@ -586,48 +689,43 @@ class Reconstruction(object):
 
     def forward(self):
         start_time = time.time()
-        nViews = self.params['NumberOfViews']
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
-        dy = -1 * dy
-        dz = -1 * dz
-        Source_Init = np.array(self.params['SourceInit'])
-        Detector_Init = np.array(self.params['DetectorInit'])
-        StartAngle = self.params['StartAngle']
-        EndAngle = self.params['EndAngle']
-        Origin = np.array(self.params['Origin'])
-        PhantomCenter = np.array(self.params['PhantomCenter'])
-        HelicalPitch = self.params['Pitch']
-        gpu = self.params['GPU']
-        SAD = np.sqrt(np.sum((Source_Init - Origin) ** 2.0))
-        SDD = np.sqrt(np.sum((Source_Init - Detector_Init) ** 2.0))
-        if (HelicalPitch > 0):
-            # P = HelicalPitch * (nv * dv * SAD) / SDD
-            P = HelicalPitch * (nv * dv)
-            nViews = (EndAngle - StartAngle) / (2 * pi) * nViews
-            log.debug(nViews)
-            assert (nViews % 1.0 == 0)
-            nViews = int(nViews)
-        else:
-            P = 0.0
-            # Calculates detector center
-        angle = np.linspace(StartAngle, EndAngle, nViews + 1)
+
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -1 * self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = -1 * self.dy
+        dz = -1 * self.dz
+        nViews = self.nView
+
+        sAngle = self.sAngle
+        eAngle = self.eAngle
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
+        Source_Init = self.Source
+        Detector_Init = self.Detector
+        Origin = self.Origin
+        source_z0 = self.source_z0
+        detector_z0 = self.detector_z0
+        H = self.HelicalTrans
+        PhantomCenter = self.PhantomCenter
+
+        SAD = self.SAD
+        SDD = self.SDD
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
         angle = angle[0:-1]
         proj = np.zeros([nViews, nv, nu], dtype=np.float32)
 
-        # Xplane = (PhantomCenter[0] - (nx - 1) / 2.0 + range(0, nx + 1)) * dx
-        # Yplane = (PhantomCenter[1] - (ny - 1) / 2.0 + range(0, ny + 1)) * dy
-        # Zplane = (PhantomCenter[2] - (nz - 1) / 2.0 + range(0, nz + 1)) * dz
         Xplane = PhantomCenter[0] + (np.arange(0, nx + 1) - (nx - 1) / 2.0) * dx
         Yplane = PhantomCenter[1] + (np.arange(0, ny + 1) - (ny - 1) / 2.0) * dy
         Zplane = PhantomCenter[2] + (np.arange(0, nz + 1) - (nz - 1) / 2.0) * dz
         Xplane = Xplane - dx / 2
         Yplane = Yplane - dy / 2
         Zplane = Zplane - dz / 2
-        # print(Yplane[1]-Yplane[0])
-        # print(Zplane[1]-Zplane[0])
+
         alpha = 0
         beta = 0
         gamma = 0
@@ -638,46 +736,55 @@ class Reconstruction(object):
 
         for i in range(nViews):
             # for i in range(12, 13):
-            print(i)
+            # print(i)
             start_time = time.time()
             Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]),
-                               Source_Init[2] + P * angle[i] / (2 * pi)])  # z-direction rotation
+                               source_z0 + H * angle[i] / (2 * pi)])  # z-direction rotation
             Detector = np.array(
-                [(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), Detector_Init[2] + P * angle[i] / (2 * pi)])
-            # DetectorLength = np.array(
-            #    [np.arange(floor(-nu / 2), floor(nu / 2) + 1) * du, np.arange(floor(-nv / 2), floor(nv / 2) + 1) * dv])
-            # DetectorVectors = [eu, ev, ew]
-            if (self.params['DetectorShape'] == 'Flat'):
+                [(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), detector_z0 + H * angle[i] / (2 * pi)])
+
+            if self.DetectorShape == 'Flat':
                 [DetectorIndex, DetectorBoundary] = self.FlatDetectorConstruction(Source, Detector, SDD, angle[i])
-                # print(DetectorBoundary.shape)
-                # print(DetectorIndex[0,128,:])
-                # sys.exit()
-            elif (self.params['DetectorShape'] == 'Curved'):
+
+            elif self.DetectorShape == 'Curved':
                 [DetectorIndex, DetectorBoundary] = self.CurvedDetectorConstruction(Source, Detector, SDD, angle[i])
+
             else:
                 print('Detector shape is not supproted!')
                 sys.exit()
-            # print('Detector initialization: ' + str(time.time() - start_time))
             if (self.params['Method'] == 'Distance'):
                 start_time = time.time()
                 proj[i, :, :] = self.distance(DetectorIndex, DetectorBoundary, Source, Detector, angle[i], Xplane,
                                               Yplane, Zplane)
-                # print('Total projection: ' + str(time.time() - start_time))
+
             elif (self.params['Method'] == 'Ray'):
                 proj[i, :, :] = self.ray(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
-            # print('time taken: ' + str(time.time() - start_time) + '\n')
+
         self.proj = proj
 
     def distance(self, DetectorIndex, DetectorBoundary, Source, Detector, angle, Xplane, Yplane, Zplane):
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
-        dy = -1 * dy
-        dz = -1 * dz
-        dv = -1 * dv
+        # [nu, nv] = self.params['NumberOfDetectorPixels']
+        # [du, dv] = self.params['DetectorPixelSize']
+        # [dx, dy, dz] = self.params['ImagePixelSpacing']
+        # [nx, ny, nz] = self.params['NumberOfImage']
+        # dy = -1 * dy
+        # dz = -1 * dz
+        # dv = -1 * dv
+
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -1 * self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = -1 * self.dy
+        dz = -1 * self.dz
+        SDD = self.SDD
+
         proj = np.zeros([nv, nu], dtype=np.float32)
-        if self.params['GPU']:
+        if self.GPU:
             device = cuda.get_current_device()
             MAX_THREAD_PER_BLOCK = device.MAX_THREADS_PER_BLOCK
             MAX_GRID_DIM_X = device.MAX_GRID_DIM_X
@@ -715,7 +822,7 @@ class Reconstruction(object):
         #      DetectorIndex[2, :, :]])
         # DetectorBoundaryV1 = np.array([DetectorIndex[0, :, :], DetectorIndex[1, :, :], DetectorIndex[2, :, :] - dv / 2])
         # DetectorBoundaryV2 = np.array([DetectorIndex[0, :, :], DetectorIndex[1, :, :], DetectorIndex[2, :, :] + dv / 2])
-        SDD = sqrt(np.sum((Source - Detector) ** 2.0))
+
         ray_angles = atan(sqrt(
             (DetectorIndex[0, :, :] - Detector[0]) ** 2.0 + (DetectorIndex[1, :, :] - Detector[1]) ** 2.0 + (
                     DetectorIndex[2, :, :] - Detector[2]) ** 2.0) / SDD)
@@ -735,7 +842,7 @@ class Reconstruction(object):
             intersection_slope2 = (Source[2] - DetectorIndex[2, :, :]) / (Source[0] - DetectorIndex[0, :, :])
             intersection_length = abs(dx) / (cos(atan(intersection_slope1)) * cos(atan(intersection_slope2)))
 
-            if (self.params['GPU']):
+            if (self.GPU):
                 TotalSize = nu * nv * nx
                 if (TotalSize < MAX_THREAD_PER_BLOCK):
                     blockX = nu * nv * nx
@@ -769,16 +876,8 @@ class Reconstruction(object):
                 intercept_z1_gpu = cuda.to_device(InterceptsV1.flatten().astype(np.float32))
                 intercept_z2_gpu = cuda.to_device(InterceptsV2.flatten().astype(np.float32))
                 proj_param_gpu = cuda.to_device(proj_param)
-                print('X')
-                # slope_y1_gpu = pycuda.gpuarray.to_gpu(SlopesU1.flatten().astype(np.float32))
-                # slope_y2_gpu = pycuda.gpuarray.to_gpu(SlopesU2.flatten().astype(np.float32))
-                # slope_z1_gpu = pycuda.gpuarray.to_gpu(SlopesV1.flatten().astype(np.float32))
-                # slope_z2_gpu = pycuda.gpuarray.to_gpu(SlopesV2.flatten().astype(np.float32))
-                # intercept_y1_gpu = pycuda.gpuarray.to_gpu(InterceptsU1.flatten().astype(np.float32))
-                # intercept_y2_gpu = pycuda.gpuarray.to_gpu(InterceptsU2.flatten().astype(np.float32))
-                # intercept_z1_gpu = pycuda.gpuarray.to_gpu(InterceptsV1.flatten().astype(np.float32))
-                # intercept_z2_gpu = pycuda.gpuarray.to_gpu(InterceptsV2.flatten().astype(np.float32))
-                # proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
+                # print('X')
+
                 distance_proj_on_x_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_y1_gpu, slope_y2_gpu,
                                                                        slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu,
                                                                        intercept_y2_gpu, intercept_z1_gpu,
@@ -853,16 +952,7 @@ class Reconstruction(object):
                 intercept_z2_gpu = cuda.to_device(InterceptsV2.flatten().astype(np.float32))
                 proj_param_gpu = cuda.to_device(proj_param)
 
-                # slope_x1_gpu = pycuda.gpuarray.to_gpu(SlopesU1.flatten().astype(np.float32))
-                # slope_x2_gpu = pycuda.gpuarray.to_gpu(SlopesU2.flatten().astype(np.float32))
-                # slope_z1_gpu = pycuda.gpuarray.to_gpu(SlopesV1.flatten().astype(np.float32))
-                # slope_z2_gpu = pycuda.gpuarray.to_gpu(SlopesV2.flatten().astype(np.float32))
-                # intercept_x1_gpu = pycuda.gpuarray.to_gpu(InterceptsU1.flatten().astype(np.float32))
-                # intercept_x2_gpu = pycuda.gpuarray.to_gpu(InterceptsU2.flatten().astype(np.float32))
-                # intercept_z1_gpu = pycuda.gpuarray.to_gpu(InterceptsV1.flatten().astype(np.float32))
-                # intercept_z2_gpu = pycuda.gpuarray.to_gpu(InterceptsV2.flatten().astype(np.float32))
-                # proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
-                print('Y')
+                # print('Y')
                 distance_proj_on_y_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_x1_gpu, slope_x2_gpu,
                                                                        slope_z1_gpu,
                                                                        slope_z2_gpu, intercept_x1_gpu, intercept_x2_gpu,
@@ -936,15 +1026,6 @@ class Reconstruction(object):
                 intercept_y2_gpu = cuda.to_device(InterceptsV2.flatten().astype(np.float32))
                 proj_param_gpu = cuda.to_device(proj_param)
 
-                # slope_x1_gpu = pycuda.gpuarray.to_gpu(SlopesU1.flatten().astype(np.float32))
-                # slope_x2_gpu = pycuda.gpuarray.to_gpu(SlopesU2.flatten().astype(np.float32))
-                # slope_y1_gpu = pycuda.gpuarray.to_gpu(SlopesV1.flatten().astype(np.float32))
-                # slope_y2_gpu = pycuda.gpuarray.to_gpu(SlopesV2.flatten().astype(np.float32))
-                # intercept_x1_gpu = pycuda.gpuarray.to_gpu(InterceptsU1.flatten().astype(np.float32))
-                # intercept_x2_gpu = pycuda.gpuarray.to_gpu(InterceptsU2.flatten().astype(np.float32))
-                # intercept_y1_gpu = pycuda.gpuarray.to_gpu(InterceptsV1.flatten().astype(np.float32))
-                # intercept_y2_gpu = pycuda.gpuarray.to_gpu(InterceptsV2.flatten().astype(np.float32))
-                # proj_param_gpu = pycuda.gpuarray.to_gpu(proj_param)
                 distance_proj_on_z_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_x1_gpu, slope_x2_gpu,
                                                                        slope_y1_gpu,
                                                                        slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu,
