@@ -12,7 +12,7 @@ params = {'SourceInit': [0, 1000.0, 0], 'DetectorInit': [0, -500.0, 0], 'StartAn
           'EndAngle': 2 * pi, 'NumberOfDetectorPixels': [512, 384], 'DetectorPixelSize': [0.5, 0.5],
           'NumberOfViews': 90, 'ImagePixelSpacing': [0.5, 0.5, 0.5], 'NumberOfImage': [256, 256, 256],
           'PhantomCenter': [0, 0, 0], 'Origin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'hann', 'cutoff': 1,
-          'GPU': 1}
+          'GPU': 1,'DetectorShape':'Flat','Pitch':0}
 R = Reconstruction(params)
 filename = 'Shepp_Logan_3d_256.dat'
 
