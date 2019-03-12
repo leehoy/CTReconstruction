@@ -939,7 +939,7 @@ class Reconstruction(object):
                         sys.exit()
                 threadsperblock = (blockX, blockY, blockZ)
                 blockspergrid = (gridX, gridY)
-                print(threadsperblock,blockspergrid)
+                #print(threadsperblock,blockspergrid)
                 proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv]).astype(np.float32)
 
                 slope_x1_gpu = cuda.to_device(SlopesU1.flatten().astype(np.float32))
