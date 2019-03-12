@@ -305,8 +305,8 @@ class Reconstruction(object):
                 gridX = 1
                 gridY = 1
             else:
-                blockX = 32
-                blockY = 32
+                blockX = 16
+                blockY = 16
                 blockZ = 1
                 GridSize = ceil(TotalSize / (blockX * blockY))
                 try:
@@ -405,8 +405,8 @@ class Reconstruction(object):
                 gridX = 1
                 gridY = 1
             else:
-                blockX = 32
-                blockY = 32
+                blockX = 16
+                blockY = 16
                 blockZ = 1
                 GridSize = ceil(TotalSize / (blockX * blockY))
                 try:
@@ -851,8 +851,8 @@ class Reconstruction(object):
                     gridX = 1
                     gridY = 1
                 else:
-                    blockX = 32
-                    blockY = 32
+                    blockX = 16
+                    blockY = 16
                     blockZ = 1
                     GridSize = ceil(TotalSize / (blockX * blockY))
                     try:
@@ -866,7 +866,6 @@ class Reconstruction(object):
                 threadsperblock = (blockX, blockY, blockZ)
                 blockspergrid = (gridX, gridY)
                 proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv]).astype(np.float32)
-
                 slope_y1_gpu = cuda.to_device(SlopesU1.flatten().astype(np.float32))
                 slope_y2_gpu = cuda.to_device(SlopesU2.flatten().astype(np.float32))
                 slope_z1_gpu = cuda.to_device(SlopesV1.flatten().astype(np.float32))
@@ -926,8 +925,8 @@ class Reconstruction(object):
                     gridX = 1
                     gridY = 1
                 else:
-                    blockX = 32
-                    blockY = 32
+                    blockX = 16
+                    blockY = 16
                     blockZ = 1
                     GridSize = ceil(TotalSize / (blockX * blockY))
                     try:
@@ -940,6 +939,7 @@ class Reconstruction(object):
                         sys.exit()
                 threadsperblock = (blockX, blockY, blockZ)
                 blockspergrid = (gridX, gridY)
+                print(threadsperblock,blockspergrid)
                 proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv]).astype(np.float32)
 
                 slope_x1_gpu = cuda.to_device(SlopesU1.flatten().astype(np.float32))
@@ -1000,8 +1000,8 @@ class Reconstruction(object):
                     gridX = 1
                     gridY = 1
                 else:
-                    blockX = 32
-                    blockY = 32
+                    blockX = 16
+                    blockY = 16
                     blockZ = 1
                     GridSize = ceil(TotalSize / (blockX * blockY))
                     try:
