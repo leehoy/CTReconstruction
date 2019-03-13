@@ -426,7 +426,9 @@ class Reconstruction(object):
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
             u_plane_gpu = cuda.to_device(ki.astype(np.float32))
             v_plane_gpu = cuda.to_device(p.astype(np.float32))
+            # Q_gpu = cuda.device_array(self.proj[0, :, :].shape, dtype=np.float32)
             for i in range(nViews):
+                # print(i, angle[i])
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 Q = self.proj[i, :, :] * dtheta
@@ -445,10 +447,12 @@ class Reconstruction(object):
             del dest
         else:
             for i in range(nViews):
+                # for i in range(40, 90):
+                # print(i, angle[i])
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 Q = self.proj[i, :, :]
-                recon += self._distance_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle[i], 0.0, ) * dtheta
+                recon += self._distance_backproj_arb(Q, Xpixel, Ypixel, Zpixel, ki, p, angle[i], 0.0) * dtheta
         return recon
 
     def _distance_backproj_arb(self, proj, Xpixel, Ypixel, Zpixel, Uplane, Vplane, angle1, angle2):
@@ -582,9 +586,9 @@ class Reconstruction(object):
                             if s_index_u == e_index_u:
                                 weight2 = 1.0
                             elif m == s_index_u:
-                                weight2 = (Uplane[k + 1] - min(coord_u1, coord_u2)) / abs(coord_u1 - coord_u2)
+                                weight2 = (Uplane[m + 1] - min(coord_u1, coord_u2)) / abs(coord_u1 - coord_u2)
                             elif m == e_index_u:
-                                weight2 = (max(coord_u1, coord_u2) - Uplane[k]) / abs(coord_u1 - coord_u2)
+                                weight2 = (max(coord_u1, coord_u2) - Uplane[m]) / abs(coord_u1 - coord_u2)
                             else:
                                 weight2 = abs(du) / abs(coord_u1 - coord_u2)
                             recon[i][j][k] += proj[l][m] * weight1 * weight2 * (R ** 2) / (R - yc) ** 2
@@ -798,7 +802,7 @@ class Reconstruction(object):
             distance_proj_on_z_gpu = distance_project_on_z
             image = np.copy(self.image).flatten().astype(np.float32)
             image_gpu = cuda.to_device(image.flatten())
-            dest = cuda.device_array(proj.flatten().shape, dtype=np.float32)
+            dest = cuda.to_device(proj.flatten().astype(np.float32))
             x_plane_gpu = cuda.to_device(Xplane.astype(np.float32))
             y_plane_gpu = cuda.to_device(Yplane.astype(np.float32))
             z_plane_gpu = cuda.to_device(Zplane.astype(np.float32))
@@ -939,7 +943,7 @@ class Reconstruction(object):
                         sys.exit()
                 threadsperblock = (blockX, blockY, blockZ)
                 blockspergrid = (gridX, gridY)
-                #print(threadsperblock,blockspergrid)
+                # print(threadsperblock,blockspergrid)
                 proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv]).astype(np.float32)
 
                 slope_x1_gpu = cuda.to_device(SlopesU1.flatten().astype(np.float32))
