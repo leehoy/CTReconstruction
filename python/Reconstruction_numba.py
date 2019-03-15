@@ -320,7 +320,7 @@ class Reconstruction(object):
             threadsperblock = (blockX, blockY, blockZ)
             blockspergrid = (gridX, gridY)
 
-            dest = cuda.device_array(recon.flatten().shape, dtype=np.float32)
+            dest = cuda.to_device(recon.flatten().astype(np.float32))
             x_pixel_gpu = cuda.to_device(Xpixel.astype(np.float32))
             y_pixel_gpu = cuda.to_device(Ypixel.astype(np.float32))
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
@@ -420,7 +420,7 @@ class Reconstruction(object):
             threadsperblock = (blockX, blockY, blockZ)
             blockspergrid = (gridX, gridY)
 
-            dest = cuda.device_array(recon.flatten().shape, dtype=np.float32)
+            dest = cuda.to_device(recon.flatten().astype(np.float32))
             x_pixel_gpu = cuda.to_device(Xpixel.astype(np.float32))
             y_pixel_gpu = cuda.to_device(Ypixel.astype(np.float32))
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
