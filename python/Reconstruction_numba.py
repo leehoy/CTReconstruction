@@ -426,18 +426,22 @@ class Reconstruction(object):
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
             u_plane_gpu = cuda.to_device(ki.astype(np.float32))
             v_plane_gpu = cuda.to_device(p.astype(np.float32))
-            # Q_gpu = cuda.device_array(self.proj[0, :, :].shape, dtype=np.float32)
+            Q_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            recon_param = np.array(
+                [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
+                 Detector[2], angle[0], 0.0, R]).astype(np.float32)
+            recon_param_gpu = cuda.device_array(recon_param.shape, dtype=np.float32)
             for i in range(nViews):
                 # print(i, angle[i])
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 Q = self.proj[i, :, :] * dtheta
                 Q = Q.flatten().astype(np.float32)
-                Q_gpu = cuda.to_device(Q)
+                Q_gpu.copy_to_device(Q)
                 recon_param = np.array(
                     [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                      Detector[2], angle[i], 0.0, R]).astype(np.float32)
-                recon_param_gpu = cuda.to_device(recon_param)
+                recon_param_gpu.copy_to_device(recon_param)
                 distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
                                                                       z_pixel_gpu, u_plane_gpu, v_plane_gpu,
                                                                       recon_param_gpu)
@@ -691,7 +695,7 @@ class Reconstruction(object):
                             recon[i][j][k] += proj[l][m] * weight1 * weight2 * (R ** 2) / (R - yc) ** 2
         return recon
 
-    def forward(self):
+    def forward_legacy(self):
         start_time = time.time()
 
         nu = self.nu
@@ -739,8 +743,6 @@ class Reconstruction(object):
         # print('Variable initialization: ' + str(time.time() - start_time))
 
         for i in range(nViews):
-            # for i in range(12, 13):
-            # print(i)
             start_time = time.time()
             Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]),
                                source_z0 + H * angle[i] / (2 * pi)])  # z-direction rotation
@@ -765,6 +767,342 @@ class Reconstruction(object):
                 proj[i, :, :] = self.ray(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
 
         self.proj = proj
+
+    def forward(self):
+
+        if (self.Method == 'Distance'):
+
+            proj = self.distance_forward()
+
+        elif (self.Method == 'Ray'):
+            pass
+            # proj[i, :, :] = self.ray(DetectorIndex, Source, Detector, angle[i], Xplane, Yplane, Zplane)
+
+        self.proj = proj
+
+    def distance_forward(self):
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -1 * self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = -1 * self.dy
+        dz = -1 * self.dz
+        nViews = self.nView
+
+        sAngle = self.sAngle
+        eAngle = self.eAngle
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
+        Source_Init = self.Source
+        Detector_Init = self.Detector
+        Origin = self.Origin
+        source_z0 = self.source_z0
+        detector_z0 = self.detector_z0
+        H = self.HelicalTrans
+        PhantomCenter = self.PhantomCenter
+
+        SAD = self.SAD
+        SDD = self.SDD
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
+        angle = angle[0:-1]
+        proj = np.zeros([nViews, nv, nu], dtype=np.float32)
+
+        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1) - (nx - 1) / 2.0) * dx
+        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1) - (ny - 1) / 2.0) * dy
+        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1) - (nz - 1) / 2.0) * dz
+        Xplane = Xplane - dx / 2
+        Yplane = Yplane - dy / 2
+        Zplane = Zplane - dz / 2
+
+        if self.GPU:
+            device = cuda.get_current_device()
+            MAX_THREAD_PER_BLOCK = device.MAX_THREADS_PER_BLOCK
+            MAX_GRID_DIM_X = device.MAX_GRID_DIM_X
+            distance_proj_on_y_gpu = distance_project_on_y2
+            distance_proj_on_x_gpu = distance_project_on_x2
+            distance_proj_on_z_gpu = distance_project_on_z2
+            image = np.copy(self.image).flatten().astype(np.float32)
+            image_gpu = cuda.to_device(image.flatten())
+            dest = cuda.to_device(proj.flatten().astype(np.float32))
+            x_plane_gpu = cuda.to_device(Xplane.astype(np.float32))
+            y_plane_gpu = cuda.to_device(Yplane.astype(np.float32))
+            z_plane_gpu = cuda.to_device(Zplane.astype(np.float32))
+            slope_x1_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            slope_x2_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            slope_y1_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            slope_y2_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            slope_z1_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            slope_z2_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intercept_x1_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intercept_x2_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intercept_y1_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intercept_y2_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intercept_z1_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intercept_z2_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            intersection_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            proj_param_gpu = cuda.device_array(9, dtype=np.float32)
+
+        for i in range(nViews):
+            # log.debug(i)
+            Source = np.array([-SAD * sin(angle[i]), SAD * cos(angle[i]), source_z0 + H * angle[i] / (2 * pi)])
+            Detector = np.array(
+                [(SDD - SAD) * sin(angle[i]), -(SDD - SAD) * cos(angle[i]), detector_z0 + H * angle[i] / (2 * pi)])
+            if self.DetectorShape == 'Flat':
+                [DetectorIndex, DetectorBoundary] = self.FlatDetectorConstruction(Source, Detector, SDD, angle[i])
+
+            elif self.DetectorShape == 'Curved':
+                [DetectorIndex, DetectorBoundary] = self.CurvedDetectorConstruction(Source, Detector, SDD, angle[i])
+            else:
+                print('Detector shape is not supproted!')
+                sys.exit()
+
+            DetectorBoundaryU1 = np.array(
+                [DetectorBoundary[0, 0:-1, 0:-1], DetectorBoundary[1, 0:-1, 0:-1], DetectorIndex[2, :, :]])
+            DetectorBoundaryU2 = np.array(
+                [DetectorBoundary[0, 1:, 1:], DetectorBoundary[1, 1:, 1:], DetectorIndex[2, :, :]])
+            DetectorBoundaryV1 = np.array([DetectorIndex[0, :, :], DetectorIndex[1, :, :], DetectorBoundary[2, 1:, 1:]])
+            DetectorBoundaryV2 = np.array(
+                [DetectorIndex[0, :, :], DetectorIndex[1, :, :], DetectorBoundary[2, 0:-1, 0:-1]])
+            ray_angles = atan(sqrt(
+                (DetectorIndex[0, :, :] - Detector[0]) ** 2.0 + (DetectorIndex[1, :, :] - Detector[1]) ** 2.0 + (
+                        DetectorIndex[2, :, :] - Detector[2]) ** 2.0) / SDD)
+            # ray_normalization = cos(ray_angles)
+            ray_normalization = 1.0
+            if abs(Source[0] - Detector[0]) >= abs(Source[1] - Detector[1]) and abs(Source[0] - Detector[0]) >= abs(
+                    Source[2] - Detector[2]):
+                SlopesU1 = (Source[1] - DetectorBoundaryU1[1, :, :]) / (Source[0] - DetectorBoundaryU1[0, :, :])
+                InterceptsU1 = -SlopesU1 * Source[0] + Source[1]
+                SlopesU2 = (Source[1] - DetectorBoundaryU2[1, :, :]) / (Source[0] - DetectorBoundaryU2[0, :, :])
+                InterceptsU2 = -SlopesU2 * Source[0] + Source[1]
+                SlopesV1 = (Source[2] - DetectorBoundaryV1[2, :, :]) / (Source[0] - DetectorBoundaryV1[0, :, :])
+                InterceptsV1 = -SlopesV1 * Source[0] + Source[2]
+                SlopesV2 = (Source[2] - DetectorBoundaryV2[2, :, :]) / (Source[0] - DetectorBoundaryV2[0, :, :])
+                InterceptsV2 = -SlopesV2 * Source[0] + Source[2]
+                intersection_slope1 = (Source[1] - DetectorIndex[1, :, :]) / (Source[0] - DetectorIndex[0, :, :])
+                intersection_slope2 = (Source[2] - DetectorIndex[2, :, :]) / (Source[0] - DetectorIndex[0, :, :])
+                intersection_length = abs(dx) / (cos(atan(intersection_slope1)) * cos(atan(intersection_slope2)))
+
+                if (self.GPU):
+                    TotalSize = nu * nv * nx
+                    if (TotalSize < MAX_THREAD_PER_BLOCK):
+                        blockX = nu * nv * nx
+                        blockY = 1
+                        blockZ = 1
+                        gridX = 1
+                        gridY = 1
+                    else:
+                        blockX = 16
+                        blockY = 16
+                        blockZ = 1
+                        GridSize = ceil(TotalSize / (blockX * blockY))
+                        try:
+                            if (GridSize < MAX_GRID_DIM_X):
+                                [gridX, gridY] = Reconstruction._optimalGrid(GridSize)
+                            else:
+                                raise ErrorDescription(6)
+                        except ErrorDescription as e:
+                            print(e)
+                            sys.exit()
+                    threadsperblock = (blockX, blockY, blockZ)
+                    blockspergrid = (gridX, gridY)
+                    proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
+                    slope_y1_gpu.copy_to_device(SlopesU1.flatten().astype(np.float32))
+                    slope_y2_gpu.copy_to_device(SlopesU2.flatten().astype(np.float32))
+                    slope_z1_gpu.copy_to_device(SlopesV1.flatten().astype(np.float32))
+                    slope_z2_gpu.copy_to_device(SlopesV2.flatten().astype(np.float32))
+                    intercept_y1_gpu.copy_to_device(InterceptsU1.flatten().astype(np.float32))
+                    intercept_y2_gpu.copy_to_device(InterceptsU2.flatten().astype(np.float32))
+                    intercept_z1_gpu.copy_to_device(InterceptsV1.flatten().astype(np.float32))
+                    intercept_z2_gpu.copy_to_device(InterceptsV2.flatten().astype(np.float32))
+                    intersection_gpu.copy_to_device(intersection_length.flatten().astype(np.float32))
+                    proj_param_gpu.copy_to_device(proj_param.flatten().astype(np.float32))
+                    # proj_param_gpu = cuda.to_device(proj_param.flatten().astype(np.float32))
+                    distance_proj_on_x_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_y1_gpu, slope_y2_gpu,
+                                                                           slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu,
+                                                                           intercept_y2_gpu, intercept_z1_gpu,
+                                                                           intercept_z2_gpu, x_plane_gpu, y_plane_gpu,
+                                                                           z_plane_gpu, intersection_gpu,
+                                                                           proj_param_gpu)
+                    # del slope_y1_gpu, slope_y2_gpu, slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu, intercept_y2_gpu, intercept_z1_gpu, intercept_z2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
+                    # proj = dest.copy_to_host().reshape([nv, nu]).astype(np.float32)
+                    # proj = proj * (intersection_length / ray_normalization)
+                    # del dest
+                else:
+                    for ix in range(nx):
+                        CoordY1 = SlopesU1 * (Xplane[ix] + dx / 2) + InterceptsU1
+                        CoordY2 = SlopesU2 * (Xplane[ix] + dx / 2) + InterceptsU2
+                        CoordZ1 = SlopesV1 * (Xplane[ix] + dx / 2) + InterceptsV1
+                        CoordZ2 = SlopesV2 * (Xplane[ix] + dx / 2) + InterceptsV2
+                        image_y1 = floor((CoordY1 - Yplane[0] + 0) / dy)
+                        image_y2 = floor((CoordY2 - Yplane[0] + 0) / dy)
+                        image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
+                        image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
+                        proj += self._distance_project_on_x(self.image, CoordY1, CoordY2, CoordZ1, CoordZ2, Yplane,
+                                                            Zplane,
+                                                            image_y1, image_y2, image_z1, image_z2, dy, dz, ix) * (
+                                        intersection_length / ray_normalization)
+
+
+            elif abs(Source[1] - Detector[1]) >= abs(Source[0] - Detector[0]) and abs(Source[1] - Detector[1]) >= abs(
+                    Source[2] - Detector[2]):
+
+                SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[1] - DetectorBoundaryU1[1, :, :])
+                InterceptsU1 = -SlopesU1 * Source[1] + Source[0]
+                SlopesU2 = (Source[0] - DetectorBoundaryU2[0, :, :]) / (Source[1] - DetectorBoundaryU2[1, :, :])
+                InterceptsU2 = -SlopesU2 * Source[1] + Source[0]
+                SlopesV1 = (Source[2] - DetectorBoundaryV1[2, :, :]) / (Source[1] - DetectorBoundaryV1[1, :, :])
+                InterceptsV1 = -SlopesV1 * Source[1] + Source[2]
+                SlopesV2 = (Source[2] - DetectorBoundaryV2[2, :, :]) / (Source[1] - DetectorBoundaryV2[1, :, :])
+                InterceptsV2 = -SlopesV2 * Source[1] + Source[2]
+                # print('Calculate line: ' + str(time.time() - start_time))
+                intersection_slope1 = (Source[0] - DetectorIndex[0, :, :]) / (Source[1] - DetectorIndex[1, :, :])
+                intersection_slope2 = (Source[2] - DetectorIndex[2, :, :]) / (Source[1] - DetectorIndex[1, :, :])
+                intersection_length = abs(dy) / (cos(atan(intersection_slope1)) * cos(atan(intersection_slope2)))
+                if (self.params['GPU']):
+                    TotalSize = nu * nv * ny
+                    if (TotalSize < MAX_THREAD_PER_BLOCK):
+                        blockX = nu * nv * ny
+                        blockY = 1
+                        blockZ = 1
+                        gridX = 1
+                        gridY = 1
+                    else:
+                        blockX = 16
+                        blockY = 16
+                        blockZ = 1
+                        GridSize = ceil(TotalSize / (blockX * blockY))
+                        try:
+                            if (GridSize < MAX_GRID_DIM_X):
+                                [gridX, gridY] = Reconstruction._optimalGrid(GridSize)
+                            else:
+                                raise ErrorDescription(6)
+                        except ErrorDescription as e:
+                            print(e)
+                            sys.exit()
+                    threadsperblock = (blockX, blockY, blockZ)
+                    blockspergrid = (gridX, gridY)
+                    # print(threadsperblock,blockspergrid)
+                    proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
+
+                    slope_x1_gpu.copy_to_device(SlopesU1.flatten().astype(np.float32))
+                    slope_x2_gpu.copy_to_device(SlopesU2.flatten().astype(np.float32))
+                    slope_z1_gpu.copy_to_device(SlopesV1.flatten().astype(np.float32))
+                    slope_z2_gpu.copy_to_device(SlopesV2.flatten().astype(np.float32))
+                    intercept_x1_gpu.copy_to_device(InterceptsU1.flatten().astype(np.float32))
+                    intercept_x2_gpu.copy_to_device(InterceptsU2.flatten().astype(np.float32))
+                    intercept_z1_gpu.copy_to_device(InterceptsV1.flatten().astype(np.float32))
+                    intercept_z2_gpu.copy_to_device(InterceptsV2.flatten().astype(np.float32))
+                    intersection_gpu.copy_to_device(intersection_length.flatten().astype(np.float32))
+                    # proj_param_gpu.copy_to_device(proj_param.flatten().astype(np.float32))
+                    proj_param_gpu = cuda.to_device(proj_param.flatten().astype(np.float32))
+                    distance_proj_on_y_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_x1_gpu, slope_x2_gpu,
+                                                                           slope_z1_gpu,
+                                                                           slope_z2_gpu, intercept_x1_gpu,
+                                                                           intercept_x2_gpu,
+                                                                           intercept_z1_gpu,
+                                                                           intercept_z2_gpu, x_plane_gpu, y_plane_gpu,
+                                                                           z_plane_gpu, intersection_gpu,
+                                                                           proj_param_gpu)
+                    # del slope_x1_gpu, slope_x2_gpu, slope_z1_gpu, slope_z2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_z1_gpu, intercept_z2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
+                    # proj = dest.get().reshape([nv, nu]).astype(np.float32)
+                    # proj = dest.copy_to_host().reshape([nv, nu]).astype(np.float32)
+                    # proj = proj * (intersection_length / ray_normalization)
+                    # del dest
+                else:
+                    for iy in range(ny):
+                        start_time = time.time()
+                        CoordX1 = SlopesU1 * (Yplane[iy] + dy / 2) + InterceptsU1
+                        CoordX2 = SlopesU2 * (Yplane[iy] + dy / 2) + InterceptsU2
+                        CoordZ1 = SlopesV1 * (Yplane[iy] + dy / 2) + InterceptsV1
+                        CoordZ2 = SlopesV2 * (Yplane[iy] + dy / 2) + InterceptsV2
+                        image_x1 = floor((CoordX1 - Xplane[0] + 0) / dx)
+                        image_x2 = floor((CoordX2 - Xplane[0] + 0) / dx)
+                        image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
+                        image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
+                        proj += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane,
+                                                            Zplane,
+                                                            image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * (
+                                        intersection_length / ray_normalization)
+
+            else:
+                SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[2] - DetectorBoundaryU1[2, :, :])
+                InterceptsU1 = -SlopesU1 * Source[2] + Source[0]
+                SlopesU2 = (Source[0] - DetectorBoundaryU2[0, :, :]) / (Source[2] - DetectorBoundaryU2[2, :, :])
+                InterceptsU2 = -SlopesU2 * Source[2] + Source[0]
+                SlopesV1 = (Source[1] - DetectorBoundaryV1[1, :, :]) / (Source[2] - DetectorBoundaryV1[2, :, :])
+                InterceptsV1 = -SlopesV1 * Source[2] + Source[1]
+                SlopesV2 = (Source[1] - DetectorBoundaryV2[1, :, :]) / (Source[2] - DetectorBoundaryV2[2, :, :])
+                InterceptsV2 = -SlopesV2 * Source[2] + Source[1]
+                intersection_slope1 = (Source[0] - DetectorIndex[0, :, :]) / (Source[2] - DetectorIndex[2, :, :])
+                intersection_slope2 = (Source[1] - DetectorIndex[1, :, :]) / (Source[2] - DetectorIndex[2, :, :])
+                intersection_length = abs(dz) / (cos(atan(intersection_slope1)) * cos(atan(intersection_slope2)))
+                if (self.params['GPU']):
+                    TotalSize = nu * nv * nz
+                    if (TotalSize < MAX_THREAD_PER_BLOCK):
+                        blockX = nu * nv * nz
+                        blockY = 1
+                        blockZ = 1
+                        gridX = 1
+                        gridY = 1
+                    else:
+                        blockX = 16
+                        blockY = 16
+                        blockZ = 1
+                        GridSize = ceil(TotalSize / (blockX * blockY))
+                        try:
+                            if (GridSize < MAX_GRID_DIM_X):
+                                [gridX, gridY] = Reconstruction._optimalGrid(GridSize)
+                            else:
+                                raise ErrorDescription(6)
+                        except ErrorDescription as e:
+                            print(e)
+                            sys.exit()
+                    threadsperblock = (blockX, blockY, blockZ)
+                    blockspergrid = (gridX, gridY)
+                    proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
+
+                    slope_x1_gpu.copy_to_device(SlopesU1.flatten().astype(np.float32))
+                    slope_x2_gpu.copy_to_device(SlopesU2.flatten().astype(np.float32))
+                    slope_y1_gpu.copy_to_device(SlopesV1.flatten().astype(np.float32))
+                    slope_y2_gpu.copy_to_device(SlopesV2.flatten().astype(np.float32))
+                    intercept_x1_gpu.copy_to_device(InterceptsU1.flatten().astype(np.float32))
+                    intercept_x2_gpu.copy_to_device(InterceptsU2.flatten().astype(np.float32))
+                    intercept_y1_gpu.copy_to_device(InterceptsV1.flatten().astype(np.float32))
+                    intercept_y2_gpu.copy_to_device(InterceptsV2.flatten().astype(np.float32))
+                    intersection_gpu.copy_to_device(intersection_length.flatten().astype(np.float32))
+                    # proj_param_gpu.copy_to_device(proj_param.flatten().astype(np.float32))
+                    proj_param_gpu = cuda.to_device(proj_param.flatten().astype(np.float32))
+                    distance_proj_on_z_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_x1_gpu, slope_x2_gpu,
+                                                                           slope_y1_gpu,
+                                                                           slope_y2_gpu, intercept_x1_gpu,
+                                                                           intercept_x2_gpu,
+                                                                           intercept_y1_gpu,
+                                                                           intercept_y2_gpu, x_plane_gpu, y_plane_gpu,
+                                                                           z_plane_gpu, intersection_gpu,
+                                                                           proj_param_gpu)
+                    # del slope_x1_gpu, slope_x2_gpu, slope_y1_gpu, slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu, intercept_y2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
+                    # proj = dest.copy_to_host().reshape([nv, nu]).astype(np.float32)
+                    # proj = proj * (intersection_length / ray_normalization)
+                    # del dest
+                else:
+                    for iz in range(nz):
+                        CoordX1 = SlopesU1 * Zplane[iz] + dz / 2 + InterceptsU1
+                        CoordX2 = SlopesU2 * Zplane[iz] + dz / 2 + InterceptsU2
+                        CoordY1 = SlopesV1 * Zplane[iz] + dz / 2 + InterceptsV1
+                        CoordY2 = SlopesV2 * Zplane[iz] + dz / 2 + InterceptsV2
+                        image_x1 = floor(CoordX1 - Xplane[0] + dx) / dx
+                        image_x2 = floor(CoordX2 - Xplane[0] + dx) / dx
+                        image_y1 = floor(CoordY1 - Yplane[0] + dy) / dy
+                        image_y2 = floor(CoordY2 - Yplane[0] + dy) / dy
+                        proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane,
+                                                            Yplane,
+                                                            image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * (
+                                        intersection_length / ray_normalization)
+        proj = dest.copy_to_host().reshape([nViews, nv, nu]).astype(np.float32)
+        return proj
 
     def distance(self, DetectorIndex, DetectorBoundary, Source, Detector, angle, Xplane, Yplane, Zplane):
         # [nu, nv] = self.params['NumberOfDetectorPixels']
