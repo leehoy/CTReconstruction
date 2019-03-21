@@ -821,9 +821,9 @@ class Reconstruction(object):
             device = cuda.get_current_device()
             MAX_THREAD_PER_BLOCK = device.MAX_THREADS_PER_BLOCK
             MAX_GRID_DIM_X = device.MAX_GRID_DIM_X
-            distance_proj_on_y_gpu = distance_project_on_y2
-            distance_proj_on_x_gpu = distance_project_on_x2
-            distance_proj_on_z_gpu = distance_project_on_z2
+            distance_proj_on_y_gpu = distance_project_on_y
+            distance_proj_on_x_gpu = distance_project_on_x
+            distance_proj_on_z_gpu = distance_project_on_z
             image = np.copy(self.image).flatten().astype(np.float32)
             image_gpu = cuda.to_device(image.flatten())
             dest = cuda.to_device(proj.flatten().astype(np.float32))
