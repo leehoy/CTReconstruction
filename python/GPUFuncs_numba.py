@@ -498,9 +498,9 @@ def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane
                     if l >= 0 and l <= nu - 1:
                         weight2 = weight_calculator2(l, s_index_u, e_index_u, coord_u1, coord_u2, du, Uplane[l],
                                                      Uplane[l + 1])
-                        # cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
-                        cuda.atomic.add(Dest, tid,
-                                        Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
+                        cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
+                        # cuda.atomic.add(Dest, tid,
+                        #                 Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
 
 
 @cuda.jit(
@@ -618,9 +618,9 @@ def curved_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vpla
                     if l >= 0 and l <= nu - 1:
                         weight2 = weight_calculator2(l, s_index_u, e_index_u, coord_u1, coord_u2, du, Uplane[l],
                                                      Uplane[l + 1])
-                        # cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
-                        cuda.atomic.add(Dest, tid,
-                                        Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
+                        cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
+                        # cuda.atomic.add(Dest, tid,
+                        #                 Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
 
 
 def DefineGPUFuns():
