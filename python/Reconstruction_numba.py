@@ -8,7 +8,7 @@ from scipy.interpolate import interp2d
 from numba import cuda
 
 # define logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 # function alias starts
