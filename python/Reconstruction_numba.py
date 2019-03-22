@@ -426,21 +426,23 @@ class Reconstruction(object):
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
             u_plane_gpu = cuda.to_device(ki.astype(np.float32))
             v_plane_gpu = cuda.to_device(p.astype(np.float32))
-            Q_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            Q_gpu = cuda.device_array(nu * nv * nViews, dtype=np.float32)
             recon_param = np.array(
                 [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
-                 Detector[2], angle[0], 0.0, R]).astype(np.float32)
+                 Detector[2], angle[0], 0.0, R, 0]).astype(np.float32)
             recon_param_gpu = cuda.device_array(recon_param.shape, dtype=np.float32)
+            Q = self.proj * dtheta
+            Q_gpu.copy_to_device(Q.flatten().astype(np.float32))
             for i in range(nViews):
                 # print(i, angle[i])
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
-                Q = self.proj[i, :, :] * dtheta
-                Q = Q.flatten().astype(np.float32)
-                Q_gpu.copy_to_device(Q)
+                # Q = self.proj[i, :, :] * dtheta
+                # Q = Q.flatten().astype(np.float32)
+                # Q_gpu.copy_to_device(Q)
                 recon_param = np.array(
                     [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
-                     Detector[2], angle[i], 0.0, R]).astype(np.float32)
+                     Detector[2], angle[i], 0.0, R, i]).astype(np.float32)
                 recon_param_gpu.copy_to_device(recon_param)
                 distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
                                                                       z_pixel_gpu, u_plane_gpu, v_plane_gpu,

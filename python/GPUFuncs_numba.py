@@ -88,7 +88,7 @@ def fz(x, y, z, angle1, angle2):
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
 def distance_project_on_y(Dest, Src, slope_x1, slope_x2, slope_z1, slope_z2, intercept_x1, intercept_x2, intercept_z1,
-                           intercept_z2, Xplane, Yplane, Zplane, intersection_length, param):
+                          intercept_z2, Xplane, Yplane, Zplane, intersection_length, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -138,7 +138,7 @@ def distance_project_on_y(Dest, Src, slope_x1, slope_x2, slope_z1, slope_z2, int
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
 def distance_project_on_x(Dest, Src, slope_y1, slope_y2, slope_z1, slope_z2, intercept_y1, intercept_y2, intercept_z1,
-                           intercept_z2, Xplane, Yplane, Zplane, intersection_length, param):
+                          intercept_z2, Xplane, Yplane, Zplane, intersection_length, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -192,7 +192,7 @@ def distance_project_on_x(Dest, Src, slope_y1, slope_y2, slope_z1, slope_z2, int
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
 def distance_project_on_z(Dest, Src, slope_x1, slope_x2, slope_y1, slope_y2, intercept_x1, intercept_x2, intercept_y1,
-                           intercept_y2, Xplane, Yplane, Zplane, intersection_length, param):
+                          intercept_y2, Xplane, Yplane, Zplane, intersection_length, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -242,8 +242,9 @@ def distance_project_on_z(Dest, Src, slope_x1, slope_x2, slope_y1, slope_y2, int
 
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
-def distance_project_on_y_legacy(Dest, Src, slope_x1, slope_x2, slope_z1, slope_z2, intercept_x1, intercept_x2, intercept_z1,
-                          intercept_z2, Xplane, Yplane, Zplane, param):
+def distance_project_on_y_legacy(Dest, Src, slope_x1, slope_x2, slope_z1, slope_z2, intercept_x1, intercept_x2,
+                                 intercept_z1,
+                                 intercept_z2, Xplane, Yplane, Zplane, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -289,8 +290,9 @@ def distance_project_on_y_legacy(Dest, Src, slope_x1, slope_x2, slope_z1, slope_
 
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
-def distance_project_on_x_legacy(Dest, Src, slope_y1, slope_y2, slope_z1, slope_z2, intercept_y1, intercept_y2, intercept_z1,
-                          intercept_z2, Xplane, Yplane, Zplane, param):
+def distance_project_on_x_legacy(Dest, Src, slope_y1, slope_y2, slope_z1, slope_z2, intercept_y1, intercept_y2,
+                                 intercept_z1,
+                                 intercept_z2, Xplane, Yplane, Zplane, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -338,8 +340,9 @@ def distance_project_on_x_legacy(Dest, Src, slope_y1, slope_y2, slope_z1, slope_
 
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
-def distance_project_on_z_legacy(Dest, Src, slope_x1, slope_x2, slope_y1, slope_y2, intercept_x1, intercept_x2, intercept_y1,
-                          intercept_y2, Xplane, Yplane, Zplane, param):
+def distance_project_on_z_legacy(Dest, Src, slope_x1, slope_x2, slope_y1, slope_y2, intercept_x1, intercept_x2,
+                                 intercept_y1,
+                                 intercept_y2, Xplane, Yplane, Zplane, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -408,6 +411,7 @@ def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane
     angle1 = param[16]
     angle2 = param[17]
     R = param[18]
+    angle_ind = int(param[19])
     N = nx * ny * nz
     if tid < N:
         iz = int((tid * 1.0) / (nx * ny * 1.0))
@@ -494,7 +498,8 @@ def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane
                     if l >= 0 and l <= nu - 1:
                         weight2 = weight_calculator2(l, s_index_u, e_index_u, coord_u1, coord_u2, du, Uplane[l],
                                                      Uplane[l + 1])
-                        cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
+                        cuda.atomic.add(Dest, tid,
+                                        Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
 
 
 @cuda.jit(
