@@ -432,7 +432,7 @@ class Reconstruction(object):
                  Detector[2], angle[0], 0.0, R, 0]).astype(np.float32)
             recon_param_gpu = cuda.device_array(recon_param.shape, dtype=np.float32)
             Q = self.proj * dtheta
-            Q_gpu = cuda.todevice(Q.flatten().astype(np.float32))
+            Q_gpu = cuda.to_device(Q.flatten().astype(np.float32))
             for i in range(nViews):
                 # print(i, angle[i])
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
