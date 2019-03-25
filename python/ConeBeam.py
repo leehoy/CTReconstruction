@@ -4,6 +4,7 @@ from scipy.interpolate import interp2d, griddata, RegularGridInterpolator
 import glob
 import matplotlib.pyplot as plt
 import time
+
 # import pycuda.driver as drv
 # import pycuda.autoinit
 # from pycuda.compiler import SourceModule
@@ -22,20 +23,22 @@ real = np.real
 ceil = np.ceil
 log2 = np.log2
 pi = np.pi
+
+
 # function alias ends
 
 
-class ErrorDescription:
+class ErrorDescription(object):
     def __init__(self, value):
-        if(value == 1):
+        if (value == 1):
             self.msg = 'Unknown variables'
-        elif(value == 2):
+        elif (value == 2):
             self.msg = 'Unknown data precision'
-        elif(value == 3):
+        elif (value == 3):
             self.msg = 'Number of file is different from number of projection data required'
-        elif(value == 4):
+        elif (value == 4):
             self.msg = 'Cutoff have to be pose between 0 and 0.5'
-        elif(value == 5):
+        elif (value == 5):
             self.msg = 'Smooth have to be pose between 0 and 1'
         else:
             self.msg = 'Unknown error'
@@ -58,16 +61,16 @@ class ConeBeam:
                 if not line:
                     break
                 p = line.split(':')[0].strip()
-                if(p in self.params.keys() or p == 'ReconVolume'):
+                if (p in self.params.keys() or p == 'ReconVolume'):
                     value = line.split(':')[1].strip()
-                    if(p == 'AngleCoverage'):
+                    if (p == 'AngleCoverage'):
                         self.params[p] = float(value) * np.pi / 180.0
-                    elif(p == 'ReconVolume'):
+                    elif (p == 'ReconVolume'):
                         value = value.split('*')
                         self.params['ReconX'] = int(value[0])
                         self.params['ReconY'] = int(value[1])
                         self.params['ReconZ'] = int(value[2])
-                    elif(p == 'DataPath' or p == 'precision'):
+                    elif (p == 'DataPath' or p == 'precision'):
                         # print value
                         self.params[p] = value
                     else:
@@ -109,7 +112,7 @@ class ConeBeam:
         ProjectionAngle = np.linspace(0, self.params['AngleCoverage'], ns + 1)
         ProjectionAngle = ProjectionAngle[0:-1]
         dtheta = ProjectionAngle[1] - ProjectionAngle[0]
-        assert(len(ProjectionAngle == ns))
+        assert (len(ProjectionAngle == ns))
         print('Reconstruction starts')
         # ki = np.arange(0 - (nx - 1) / 2, nx - (nx - 1) / 2)
         # p = np.arange(0 - (ny - 1) / 2, ny - (ny - 1) / 2)
@@ -124,7 +127,7 @@ class ConeBeam:
         ki = (ki * R) / (R + D)
         p = (p * R) / (R + D)
         [kk, pp] = np.meshgrid(ki, p)
-# 		sample_points = np.vstack((pp.flatten(), kk.flatten())).T
+        # 		sample_points = np.vstack((pp.flatten(), kk.flatten())).T
         weight = R / (sqrt(R ** 2 + kk ** 2 + pp ** 2))
         for i in range(0, ns):
             angle = ProjectionAngle[i]
@@ -146,7 +149,7 @@ class ConeBeam:
                 (p, ki), Q, bounds_error=False, fill_value=0)
             t = xx * cos(angle) + yy * sin(angle)
             s = -xx * sin(angle) + yy * cos(angle)
-#  			for l in range(0, ReconZ):
+            #  			for l in range(0, ReconZ):
             for l in range(255, 256):
                 InterpX = (R * t) / (R - s)
                 InterpY = (R * z[l]) / (R - s)
@@ -154,9 +157,9 @@ class ConeBeam:
                 pts = np.vstack((InterpY.flatten(), InterpX.flatten())).T
                 vq = InterpolationFunction(pts)
                 recon[l, :, :] += InterpW * dtheta * \
-                    vq.reshape([self.params['ReconX'], self.params['ReconY']])
-# 				Interpolgpu(drv.Out(dest),drv.In(Q),block=())
-            # Interpolation required
+                                  vq.reshape([self.params['ReconX'], self.params['ReconY']])
+        # 				Interpolgpu(drv.Out(dest),drv.In(Q),block=())
+        # Interpolation required
 
         self.recon = recon.astype(np.float32)
         recon.tofile(savefile, sep='', format='')
@@ -171,17 +174,17 @@ class ConeBeam:
 
         filelist = sorted(glob.glob(path + '*.dat'))
         try:
-            if(self.params['precision'] == 'float32'):
+            if (self.params['precision'] == 'float32'):
                 precision = np.float32
-            elif(self.params['precision'] == 'float64'):
+            elif (self.params['precision'] == 'float64'):
                 precision = np.float64
-            elif(self.params['precision'] == 'int32'):
+            elif (self.params['precision'] == 'int32'):
                 precision = np.int32
-            elif(self.params['precision'] == 'int64'):
+            elif (self.params['precision'] == 'int64'):
                 precision = np.int64
             else:
                 raise ErrorDescription(2)
-            if(not len(filelist) == ns):
+            if (not len(filelist) == ns):
                 raise ErrorDescription(3)
             else:
                 c = 0
