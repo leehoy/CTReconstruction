@@ -1121,7 +1121,8 @@ class Reconstruction(object):
                                                             Yplane,
                                                             image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * (
                                         intersection_length / ray_normalization)
-        proj = dest.copy_to_host().reshape([nViews, nv, nu]).astype(np.float32)
+        if self.GPU:
+            proj = dest.copy_to_host().reshape([nViews, nv, nu]).astype(np.float32)
         return proj
 
     def distance(self, DetectorIndex, DetectorBoundary, Source, Detector, angle, Xplane, Yplane, Zplane):

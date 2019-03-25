@@ -858,8 +858,7 @@ class Reconstruction(object):
                         except ErrorDescription as e:
                             print(e)
                             sys.exit()
-                    threadsperblock = (blockX, blockY, blockZ)
-                    blockspergrid = (gridX, gridY)
+
                     proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
                     slope_y1_gpu.set(SlopesU1.flatten().astype(np.float32))
                     slope_y2_gpu.set(SlopesU2.flatten().astype(np.float32))
@@ -872,12 +871,10 @@ class Reconstruction(object):
                     intersection_gpu.set(intersection_length.flatten().astype(np.float32))
                     proj_param_gpu.set(proj_param.flatten().astype(np.float32))
 
-                    distance_proj_on_x_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_y1_gpu, slope_y2_gpu,
-                                                                           slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu,
-                                                                           intercept_y2_gpu, intercept_z1_gpu,
-                                                                           intercept_z2_gpu, x_plane_gpu, y_plane_gpu,
-                                                                           z_plane_gpu, intersection_gpu,
-                                                                           proj_param_gpu)
+                    distance_proj_on_x_gpu(dest, image_gpu, slope_y1_gpu, slope_y2_gpu, slope_z1_gpu, slope_z2_gpu,
+                                           intercept_y1_gpu, intercept_y2_gpu, intercept_z1_gpu, intercept_z2_gpu,
+                                           x_plane_gpu, y_plane_gpu, z_plane_gpu, intersection_gpu, proj_param_gpu,
+                                           block=(blockX, blockY, blockZ), grid=(gridX, gridY))
 
                 else:
                     for ix in range(nx):
@@ -931,9 +928,7 @@ class Reconstruction(object):
                         except ErrorDescription as e:
                             print(e)
                             sys.exit()
-                    threadsperblock = (blockX, blockY, blockZ)
-                    blockspergrid = (gridX, gridY)
-                    # print(threadsperblock,blockspergrid)
+
                     proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
 
                     slope_x1_gpu.set(SlopesU1.flatten().astype(np.float32))
@@ -946,14 +941,10 @@ class Reconstruction(object):
                     intercept_z2_gpu.set(InterceptsV2.flatten().astype(np.float32))
                     intersection_gpu.set(intersection_length.flatten().astype(np.float32))
                     proj_param_gpu.set(proj_param.flatten().astype(np.float32))
-                    distance_proj_on_y_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_x1_gpu, slope_x2_gpu,
-                                                                           slope_z1_gpu,
-                                                                           slope_z2_gpu, intercept_x1_gpu,
-                                                                           intercept_x2_gpu,
-                                                                           intercept_z1_gpu,
-                                                                           intercept_z2_gpu, x_plane_gpu, y_plane_gpu,
-                                                                           z_plane_gpu, intersection_gpu,
-                                                                           proj_param_gpu)
+                    distance_proj_on_y_gpu(dest, image_gpu, slope_x1_gpu, slope_x2_gpu, slope_z1_gpu, slope_z2_gpu,
+                                           intercept_x1_gpu, intercept_x2_gpu, intercept_z1_gpu, intercept_z2_gpu,
+                                           x_plane_gpu, y_plane_gpu, z_plane_gpu, intersection_gpu, proj_param_gpu,
+                                           block=(blockX, blockY, blockZ), grid=(gridX, gridY))
 
                 else:
                     for iy in range(ny):
@@ -966,10 +957,10 @@ class Reconstruction(object):
                         image_x2 = floor((CoordX2 - Xplane[0] + 0) / dx)
                         image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                         image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-                        proj += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane,
-                                                            Zplane,
-                                                            image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * (
-                                        intersection_length / ray_normalization)
+                        proj[i, :, :] += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2,
+                                                                     Xplane, Zplane, image_x1, image_x2, image_z1,
+                                                                     image_z2, dx, dz, iy) * (
+                                                 intersection_length / ray_normalization)
 
             else:
                 SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[2] - DetectorBoundaryU1[2, :, :])
@@ -1004,8 +995,7 @@ class Reconstruction(object):
                         except ErrorDescription as e:
                             print(e)
                             sys.exit()
-                    threadsperblock = (blockX, blockY, blockZ)
-                    blockspergrid = (gridX, gridY)
+
                     proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
 
                     slope_x1_gpu.set(SlopesU1.flatten().astype(np.float32))
@@ -1018,14 +1008,10 @@ class Reconstruction(object):
                     intercept_y2_gpu.set(InterceptsV2.flatten().astype(np.float32))
                     intersection_gpu.copy_to_device(intersection_length.flatten().astype(np.float32))
                     proj_param_gpu.set(proj_param.flatten().astype(np.float32))
-                    distance_proj_on_z_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_x1_gpu, slope_x2_gpu,
-                                                                           slope_y1_gpu,
-                                                                           slope_y2_gpu, intercept_x1_gpu,
-                                                                           intercept_x2_gpu,
-                                                                           intercept_y1_gpu,
-                                                                           intercept_y2_gpu, x_plane_gpu, y_plane_gpu,
-                                                                           z_plane_gpu, intersection_gpu,
-                                                                           proj_param_gpu)
+                    distance_proj_on_z_gpu(dest, image_gpu, slope_x1_gpu, slope_x2_gpu, slope_y1_gpu, slope_y2_gpu,
+                                           intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu, intercept_y2_gpu,
+                                           x_plane_gpu, y_plane_gpu, z_plane_gpu, intersection_gpu, proj_param_gpu,
+                                           block=(blockX, blockY, blockZ), grid=(gridX, gridY))
 
                 else:
                     for iz in range(nz):
@@ -1037,11 +1023,13 @@ class Reconstruction(object):
                         image_x2 = floor(CoordX2 - Xplane[0] + dx) / dx
                         image_y1 = floor(CoordY1 - Yplane[0] + dy) / dy
                         image_y2 = floor(CoordY2 - Yplane[0] + dy) / dy
-                        proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane,
-                                                            Yplane,
-                                                            image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * (
-                                        intersection_length / ray_normalization)
-        proj = dest.get().reshape([nViews, nv, nu]).astype(np.float32)
+                        proj[i, :, :] += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2,
+                                                                     Xplane, Yplane, image_x1, image_x2, image_y1,
+                                                                     image_y2, dx, dy, iz) * (
+                                                     intersection_length / ray_normalization)
+        if self.GPU:
+            proj = dest.get().reshape([nViews, nv, nu]).astype(np.float32)
+        return proj
 
     def distance(self, DetectorIndex, DetectorBoundary, Source, Detector, angle, Xplane, Yplane, Zplane):
         [nu, nv] = self.params['NumberOfDetectorPixels']
