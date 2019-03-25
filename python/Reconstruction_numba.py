@@ -33,6 +33,24 @@ real = np.real
 # function alias ends
 # mod = DefineGPUFuns()
 
+class ErrorDescription(object):
+    def __init__(self, value):
+        if value == 1:
+            self.msg = 'Unknown variables'
+        elif value == 2:
+            self.msg = 'Unknown data precision'
+        elif value == 3:
+            self.msg = 'Number of file is different from number of projection data required'
+        elif value == 4:
+            self.msg = 'Cutoff have to be pose between 0 and 0.5'
+        elif value == 5:
+            self.msg = 'Smooth have to be pose between 0 and 1'
+        else:
+            self.msg = 'Unknown error'
+
+    def __str__(self):
+        return self.msg
+
 
 class Reconstruction(object):
 
