@@ -41,6 +41,25 @@ real = np.real
 mod = DefineGPUFuns()
 
 
+class ErrorDescription(object):
+    def __init__(self, value):
+        if (value == 1):
+            self.msg = 'Unknown variables'
+        elif (value == 2):
+            self.msg = 'Unknown data precision'
+        elif (value == 3):
+            self.msg = 'Number of file is different from number of projection data required'
+        elif (value == 4):
+            self.msg = 'Cutoff have to be pose between 0 and 0.5'
+        elif (value == 5):
+            self.msg = 'Smooth have to be pose between 0 and 1'
+        else:
+            self.msg = 'Unknown error'
+
+    def __str__(self):
+        return self.msg
+
+
 class Reconstruction(object):
 
     def __init__(self, params):
@@ -50,17 +69,39 @@ class Reconstruction(object):
                        'PhantomCenter': [0, 0, 0], 'Origin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak',
                        'cutoff': 1, 'GPU': 0, 'DetectorShape': 'Flat', 'Pitch': 0}
         self.params = params
+        [self.nu, self.nv] = self.params['NumberOfDetectorPixels']
+        [self.du, self.dv] = self.params['DetectorPixelSize']
+        [self.nx, self.ny, self.nz] = self.params['NumberOfImage']
+        [self.dx, self.dy, self.dz] = self.params['ImagePixelSpacing']
+        self.Origin = np.array(self.params['RotationOrigin'])
+        self.PhantomCenter = np.array(self.params['PhantomCenter'])
+        self.cutoff = self.params['cutoff']
+        self.DetectorShape = self.params['DetectorShape']
+        self.P = self.params['Pitch']
+        self.Source = np.array(self.params['SourceInit'])
+        self.Detector = np.array(self.params['DetectorInit'])
+        self.SAD = np.sqrt(np.sum((self.Source - self.Origin) ** 2.0))
+        self.SDD = np.sqrt(np.sum((self.Source - self.Detector) ** 2.0))
+        self.HelicalTrans = self.P * (self.nv * self.dv) * self.SAD / self.SDD
+        self.nView = self.params['NumberOfViews']
+        self.sAngle = self.params['StartAngle']
+        self.eAngle = self.params['EndAngle']
+        self.Proj2pi = self.nView / ((self.eAngle - self.sAngle) / (2 * pi))
+        self.Method = self.params['Method']
+        self.FilterType = self.params['FilterType']
+        self.source_z0 = self.Source[2]
+        self.detector_z0 = self.Detector[2]
+        self.ReconCenter = self.params['ReconCenter']
+        if self.params['GPU'] == 1:
+            self.GPU = True
+        else:
+            self.GPU = False
 
-    #         start_time = time.time()
-    #         self.proj = self.LoadProj(filename, [self.params['NumberOfViews'], self.params['NumberOfDetectorPixels'][1], self.params['NumberOfDetectorPixels'][0]], dtype=np.float32)
-    # print('File load: ' + str(time.time() - start_time))
-    def LoadProj(self, filename, image_size, dtype=np.float32):
-        self.proj = np.fromfile(filename, dtype=dtype).reshape(image_size)
-        # return proj
+    def LoadProj(self, filename, dtype=np.float32):
+        self.proj = np.fromfile(filename, dtype=dtype).reshape([self.nView, self.nv, self.nu])
 
-    def LoadRecon(self, filename, image_size, dtype=np.float32):
-        self.image = np.fromfile(filename, dtype=dtype).reshape(image_size)
-        # return image
+    def LoadRecon(self, filename, dtype=np.float32):
+        self.image = np.fromfile(filename, dtype=dtype).reshape([self.nz, self.ny, self.nx])
 
     def SaveProj(self, filename):
         self.proj.tofile(filename, sep='', format='')
@@ -72,29 +113,22 @@ class Reconstruction(object):
         eu = [cos(angle), sin(angle), 0]
         ew = [sin(angle), -cos(angle), 0]
         ev = [0, 0, 1]
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        da = du / SDD
-        u = (np.arange(0, nu) - (nu - 1) / 2.0) * da
-        v = (np.arange(0, nv) - (nv - 1) / 2.0) * dv
+        self.da = self.du / self.SDD
+        u = (np.arange(0, self.nu) - (self.nu - 1) / 2.0) * self.da
+        v = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * self.dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
         U, V = np.meshgrid(u, v)
         # V, U = np.meshgrid(v, u)
         DetectorIndex[0, :, :] = Source[0] + SDD * sin(U) * eu[0] + SDD * cos(U) * ew[0] - V * ev[0]
         DetectorIndex[1, :, :] = Source[1] + SDD * sin(U) * eu[1] + SDD * cos(U) * ew[1] - V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + SDD * sin(U) * eu[2] + SDD * cos(U) * ew[2] - V * ev[2]
-        u2 = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * da - da / 2.0
-        v2 = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv - dv / 2.0
+        u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.da - self.da / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
         DetectorBoundary[0, :, :] = Source[0] + SDD * sin(U2) * eu[0] + SDD * cos(U2) * ew[0] - V2 * ev[0]
         DetectorBoundary[1, :, :] = Source[1] + SDD * sin(U2) * eu[1] + SDD * cos(U2) * ew[1] - V2 * ev[1]
         DetectorBoundary[2, :, :] = Source[2] + SDD * sin(U2) * eu[2] + SDD * cos(U2) * ew[2] - V2 * ev[2]
-        # for uu in range(len(DetectorLength[0])):
-        #     for vv in range(len(DetectorLength[1])):
-        #         DetectorIndex[:, uu, vv] = Source[0] + SDD * sin(DetectorLength[0][uu]) * eu + Source[1] + SDD * cos(
-        #             DetectorLength[0][uu]) * ew + Source[3] + DetectorLength[1][vv] * ev
-
         return DetectorIndex, DetectorBoundary
 
     def FlatDetectorConstruction(self, Source, DetectorCenter, SDD, angle):
@@ -103,22 +137,20 @@ class Reconstruction(object):
         eu = [cos(angle), sin(angle), 0]
         ew = [sin(angle), -cos(angle), 0]
         ev = [0.0, 0.0, 1.0]
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
+        # [nu, nv] = self.params['NumberOfDetectorPixels']
+        # [du, dv] = self.params['DetectorPixelSize']
+        # [dx, dy, dz] = self.params['ImagePixelSpacing']
+        # [nx, ny, nz] = self.params['NumberOfImage']
         # dv=-1.0*dv
-        u = (np.arange(0, nu) - (nu - 1.0) / 2.0) * du
-        v = (np.arange(0, nv) - (nv - 1.0) / 2.0) * dv
+        u = (np.arange(0, self.nu) - (self.nu - 1.0) / 2.0) * self.du
+        v = (np.arange(0, self.nv) - (self.nv - 1.0) / 2.0) * self.dv
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
-
-        # U, V = np.meshgrid(u, v)
         U, V = np.meshgrid(u, v)
         DetectorIndex[0, :, :] = Source[0] + U * eu[0] + SDD * ew[0] - V * ev[0]
         DetectorIndex[1, :, :] = Source[1] + U * eu[1] + SDD * ew[1] - V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] - V * ev[2]
-        u2 = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du - du / 2.0
-        v2 = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv - dv / 2.0
+        u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.du - self.du / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
         DetectorBoundary[0, :, :] = Source[0] + U2 * eu[0] + SDD * ew[0] - V2 * ev[0]
@@ -180,15 +212,35 @@ class Reconstruction(object):
         return filter
 
     def Filtering(self):
-        [du, dv] = self.params['DetectorPixelSize']
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        ZeroPaddedLength = int(2.0 ** (ceil(log2(2.0 * (nu - 1)))))
-        ki = (np.arange(0, nu + 1) - nu / 2.0) * du
-        p = (np.arange(0, nv + 1) - nv / 2.0) * dv
-        for i in range(self.proj.shape[0]):
-            self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p, self.params)
 
-    def backward(self):
+        ki = (np.arange(0, self.nu + 1) - self.nu / 2.0) * self.du
+        p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * self.dv
+        for i in range(self.proj.shape[0]):
+            self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p)
+
+    def filter_proj(self, proj, ki, p):
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -self.dv
+        ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
+        R = self.SAD
+        D = self.SDD
+        [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
+        weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
+
+        deltaS = du * R / (R + D)
+        filter = Reconstruction.Filter(
+            ZeroPaddedLength + 1, du * R / (D + R), self.FilterType, self.cutoff)
+        weightd_proj = weight * proj
+        Q = np.zeros(weightd_proj.shape, dtype=np.float32)
+        for k in range(nv):
+            tmp = real(ifft(ifftshift(filter * fftshift(fft(weightd_proj[k, :], ZeroPaddedLength)))))
+            Q[k, :] = tmp[0:nu] * deltaS
+
+        return Q
+
+    def backward_legacy(self):
         nViews = self.params['NumberOfViews']
         [nu, nv] = self.params['NumberOfDetectorPixels']
         [du, dv] = self.params['DetectorPixelSize']
@@ -245,56 +297,51 @@ class Reconstruction(object):
             # recon = self.ray(DetectorIndex, Source, Detector, angle)
         self.image = recon
 
-    @staticmethod
-    def filter_proj(proj, ki, p, params):
-        [du, dv] = params['DetectorPixelSize']
-        [nu, nv] = params['NumberOfDetectorPixels']
-        ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
-        R = sqrt(np.sum((np.array(params['SourceInit']) - np.array(params['PhantomCenter'])) ** 2.0))
-        D = sqrt(np.sum((np.array(params['DetectorInit']) - np.array(params['PhantomCenter'])) ** 2.0))
-        # print(ki.shape, p.shape)
-        [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
-        weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
-
-        deltaS = du * R / (R + D)
-        filter = Reconstruction.Filter(
-            ZeroPaddedLength + 1, du * R / (D + R), params['FilterType'], params['cutoff'])
-        weightd_proj = weight * proj
-        Q = np.zeros(weightd_proj.shape, dtype=np.float32)
-        for k in range(nv):
-            tmp = real(ifft(
-                ifftshift(filter * fftshift(fft(weightd_proj[k, :], ZeroPaddedLength)))))
-            Q[k, :] = tmp[0:nu] * deltaS
-
-        return Q
+    def backward(self):
+        recon = np.zeros([self.nz, self.ny, self.nx], dtype=np.float32)
+        start_time = time.time()
+        if self.Method == 'Distance':
+            recon = self.distance_backproj()
+        elif self.Method == 'Ray':
+            pass
+            # recon = self.ray_backproj(DetectorIndex, Source, Detector, angle)
+        self.image = recon
 
     def distance_backproj(self):
         # proj should be filtered data
-        [nu, nv] = self.params['NumberOfDetectorPixels']
-        [du, dv] = self.params['DetectorPixelSize']
-        [dx, dy, dz] = self.params['ImagePixelSpacing']
-        [nx, ny, nz] = self.params['NumberOfImage']
-        Source = self.params['SourceInit']
-        Detector = self.params['DetectorInit']
-        R = sqrt(np.sum((np.array(Source) - np.array(self.params['PhantomCenter'])) ** 2.0))
-        rotation_vector = [0, 0, 1]
-        dy = -1 * dy
-        dz = -1 * dz
-        dv = -1 * dv
-        nViews = self.params['NumberOfViews']
-        StartAngle = self.params['StartAngle']
-        EndAngle = self.params['EndAngle']
-        angle = np.linspace(StartAngle, EndAngle, nViews + 1)
+        nu = self.nu
+        nv = self.nv
+        du = self.du
+        dv = -1 * self.dv
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
+        dx = self.dx
+        dy = -1 * self.dy
+        dz = -1 * self.dz
+        nViews = self.nView
+        R = self.SAD
+        D = self.SDD
+        sAngle = self.sAngle
+        eAngle = self.eAngle
+        angle = np.linspace(sAngle, eAngle, nViews + 1)
         angle = angle[0:-1]
-        PhantomCenter = self.params['PhantomCenter']
+        Source = self.Source
+        Detector = self.Detector
+        source_z0 = self.source_z0
+        detector_z0 = self.detector_z0
+        H = self.HelicalTrans
+        PhantomCenter = self.PhantomCenter
+        ReconCenter = self.ReconCenter
+
         dtheta = angle[1] - angle[0]
-        Xpixel = PhantomCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
-        Ypixel = PhantomCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
-        Zpixel = PhantomCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
+        Xpixel = ReconCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
+        Ypixel = ReconCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
+        Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
         ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
-        if self.params['GPU']:
+        if self.GPU:
             device = drv.Device(0)
             attrs = device.get_attributes()
             MAX_THREAD_PER_BLOCK = attrs[pycuda._driver.device_attribute.MAX_THREADS_PER_BLOCK]
@@ -319,7 +366,18 @@ class Reconstruction(object):
                 except ErrorDescription as e:
                     print(e)
                     sys.exit()
-            distance_backproj_arb = mod.get_function("distance_backproj_arb")
+            try:
+                if self.DetectorShape == 'Curved':
+                    du = du / D
+                    distance_backproj_arb = mod.get_function('curved_distance_backproj_arb')
+                elif self.DetectorShape == 'Flat':
+                    distance_backproj_arb = mod.deg_function('flat_distance_backproj_arb')
+                else:
+                    raise ErrorDescription(1)
+            except ErrorDescription as e:
+                print(e)
+                sys.exit()
+
             dest = pycuda.gpuarray.to_gpu(recon.flatten().astype(np.float32))
             x_pixel_gpu = pycuda.gpuarray.to_gpu(Xpixel.astype(np.float32))
             y_pixel_gpu = pycuda.gpuarray.to_gpu(Ypixel.astype(np.float32))
@@ -329,17 +387,25 @@ class Reconstruction(object):
             recon_param = np.array(
                 [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                  Detector[2], angle[0], 0.0, R]).astype(np.float32)
-            recon_param_gpu = drv.mem_alloc(recon_param.nbytes)
+            # recon_param_gpu = drv.mem_alloc(recon_param.nbytes)
+            recon_param_gpu = pycuda.gpuarray.to_gpue(recon_param.flatten().astype(np.float32))
+            Q = self.proj * dtheta
+            Q_gpu = pycuda.gpuarray.to_gpu(Q.flatten().astype(np.float32))
             for i in range(nViews):
-                Q = self.proj[i, :, :] * dtheta
-                Q = Q.flatten().astype(np.float32)
-                recon_param = np.array(
-                    [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
-                     Detector[2], angle[i], 0.0, R]).astype(np.float32)
-                # recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param)
-                drv.memcpy_htod(recon_param_gpu, recon_param)
-                distance_backproj_arb(dest, drv.In(Q), x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, u_plane_gpu, v_plane_gpu,
-                                      recon_param_gpu, block=(blockX, blockY, blockZ), grid=(gridX, gridY))
+                # Q = self.proj[i, :, :] * dtheta
+                # Q = Q.flatten().astype(np.float32)
+                Source[2] = source_z0 + H * angle[i] / (2 * pi)
+                Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
+                # recon_param = np.array(
+                #     [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
+                #      Detector[2], angle[i], 0.0, R]).astype(np.float32)
+                # drv.memcpy_htod(recon_param_gpu, recon_param)
+                angle1 = angle[i]
+                angle2 = 0.0
+                distance_backproj_arb(dest, Q_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, u_plane_gpu, v_plane_gpu,
+                                      recon_param_gpu, Source[0], Source[1], Source[2], Detector[0], Detector[1],
+                                      Detector[2], angle1, angle2, i, block=(blockX, blockY, blockZ),
+                                      grid=(gridX, gridY))
             del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
             recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
             del dest
