@@ -826,7 +826,7 @@ __global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,flo
                             weight2=fabsf(du)/fabsf(coord_u1-coord_u2);
                         }
                         atomicAdd(&Dest[tid],Src[k*nu+l]*weight1*weight2*InterpWeight);
-                        __syncthreads();
+                        //__syncthreads();
                     }                    
                 }
             }
