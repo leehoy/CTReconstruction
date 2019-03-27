@@ -449,25 +449,23 @@ class Reconstruction(object):
                 [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                  Detector[2], angle[0], 0.0, R, 0]).astype(np.float32)
             recon_param_gpu = cuda.device_array(recon_param.shape, dtype=np.float32)
-            #Q = self.proj * dtheta
-            #Q_gpu = cuda.to_device(Q.flatten().astype(np.float32))
+            Q = self.proj * dtheta
+            Q_gpu = cuda.to_device(Q.flatten().astype(np.float32))
             for i in range(nViews):
                 # print(i, angle[i])
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
-                Q = self.proj[i, :, :] * dtheta
-                Q = Q.flatten().astype(np.float32)
-                Q_gpu.copy_to_device(Q)
-                recon_param = np.array(
-                    [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
-                     Detector[2], angle[i], 0.0, R, i]).astype(np.float32)
-                recon_param_gpu.copy_to_device(recon_param)
+                angle1 = angle[i]
+                angle2 = 0.0
+                
                 distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
                                                                       z_pixel_gpu, u_plane_gpu, v_plane_gpu,
-                                                                      recon_param_gpu)
+                                                                      recon_param_gpu, Source[0], Source[1], Source[2],
+                                                                      Detector[0], Detector[1], Detector[2], angle1,
+                                                                      angle2, i)
             del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
             recon = dest.copy_to_host().reshape([nz, ny, nx]).astype(np.float32)
-            # recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
+
             del dest
         else:
             for i in range(nViews):
@@ -939,17 +937,12 @@ class Reconstruction(object):
                     intercept_z2_gpu.copy_to_device(InterceptsV2.flatten().astype(np.float32))
                     intersection_gpu.copy_to_device(intersection_length.flatten().astype(np.float32))
                     proj_param_gpu.copy_to_device(proj_param.flatten().astype(np.float32))
-                    # proj_param_gpu = cuda.to_device(proj_param.flatten().astype(np.float32))
                     distance_proj_on_x_gpu[blockspergrid, threadsperblock](dest, image_gpu, slope_y1_gpu, slope_y2_gpu,
                                                                            slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu,
                                                                            intercept_y2_gpu, intercept_z1_gpu,
                                                                            intercept_z2_gpu, x_plane_gpu, y_plane_gpu,
                                                                            z_plane_gpu, intersection_gpu,
                                                                            proj_param_gpu)
-                    # del slope_y1_gpu, slope_y2_gpu, slope_z1_gpu, slope_z2_gpu, intercept_y1_gpu, intercept_y2_gpu, intercept_z1_gpu, intercept_z2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
-                    # proj = dest.copy_to_host().reshape([nv, nu]).astype(np.float32)
-                    # proj = proj * (intersection_length / ray_normalization)
-                    # del dest
                 else:
                     for ix in range(nx):
                         CoordY1 = SlopesU1 * (Xplane[ix] + dx / 2) + InterceptsU1
@@ -960,10 +953,10 @@ class Reconstruction(object):
                         image_y2 = floor((CoordY2 - Yplane[0] + 0) / dy)
                         image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                         image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-                        proj += self._distance_project_on_x(self.image, CoordY1, CoordY2, CoordZ1, CoordZ2, Yplane,
-                                                            Zplane,
-                                                            image_y1, image_y2, image_z1, image_z2, dy, dz, ix) * (
-                                        intersection_length / ray_normalization)
+                        proj[i, :, :] += self._distance_project_on_x(self.image, CoordY1, CoordY2, CoordZ1, CoordZ2,
+                                                                     Yplane, Zplane, image_y1, image_y2, image_z1,
+                                                                     image_z2, dy, dz, ix) * (
+                                                 intersection_length / ray_normalization)
 
 
             elif abs(Source[1] - Detector[1]) >= abs(Source[0] - Detector[0]) and abs(Source[1] - Detector[1]) >= abs(
@@ -1026,11 +1019,6 @@ class Reconstruction(object):
                                                                            intercept_z2_gpu, x_plane_gpu, y_plane_gpu,
                                                                            z_plane_gpu, intersection_gpu,
                                                                            proj_param_gpu)
-                    # del slope_x1_gpu, slope_x2_gpu, slope_z1_gpu, slope_z2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_z1_gpu, intercept_z2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
-                    # proj = dest.get().reshape([nv, nu]).astype(np.float32)
-                    # proj = dest.copy_to_host().reshape([nv, nu]).astype(np.float32)
-                    # proj = proj * (intersection_length / ray_normalization)
-                    # del dest
                 else:
                     for iy in range(ny):
                         start_time = time.time()
@@ -1042,10 +1030,10 @@ class Reconstruction(object):
                         image_x2 = floor((CoordX2 - Xplane[0] + 0) / dx)
                         image_z1 = floor((CoordZ1 - Zplane[0] + 0) / dz)
                         image_z2 = floor((CoordZ2 - Zplane[0] + 0) / dz)
-                        proj += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2, Xplane,
-                                                            Zplane,
-                                                            image_x1, image_x2, image_z1, image_z2, dx, dz, iy) * (
-                                        intersection_length / ray_normalization)
+                        proj[i, :, :] += self._distance_project_on_y(self.image, CoordX1, CoordX2, CoordZ1, CoordZ2,
+                                                                     Xplane, Zplane, image_x1, image_x2, image_z1,
+                                                                     image_z2, dx, dz, iy) * (
+                                                 intersection_length / ray_normalization)
 
             else:
                 SlopesU1 = (Source[0] - DetectorBoundaryU1[0, :, :]) / (Source[2] - DetectorBoundaryU1[2, :, :])
@@ -1103,10 +1091,7 @@ class Reconstruction(object):
                                                                            intercept_y2_gpu, x_plane_gpu, y_plane_gpu,
                                                                            z_plane_gpu, intersection_gpu,
                                                                            proj_param_gpu)
-                    # del slope_x1_gpu, slope_x2_gpu, slope_y1_gpu, slope_y2_gpu, intercept_x1_gpu, intercept_x2_gpu, intercept_y1_gpu, intercept_y2_gpu, x_plane_gpu, y_plane_gpu, z_plane_gpu
-                    # proj = dest.copy_to_host().reshape([nv, nu]).astype(np.float32)
-                    # proj = proj * (intersection_length / ray_normalization)
-                    # del dest
+
                 else:
                     for iz in range(nz):
                         CoordX1 = SlopesU1 * Zplane[iz] + dz / 2 + InterceptsU1
@@ -1117,10 +1102,12 @@ class Reconstruction(object):
                         image_x2 = floor(CoordX2 - Xplane[0] + dx) / dx
                         image_y1 = floor(CoordY1 - Yplane[0] + dy) / dy
                         image_y2 = floor(CoordY2 - Yplane[0] + dy) / dy
-                        proj += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2, Xplane,
-                                                            Yplane,
-                                                            image_x1, image_x2, image_y1, image_y2, dx, dy, iz) * (
-                                        intersection_length / ray_normalization)
+                        proj[i, :, :] += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2,
+                                                                     Xplane,
+                                                                     Yplane,
+                                                                     image_x1, image_x2, image_y1, image_y2, dx, dy,
+                                                                     iz) * (
+                                                 intersection_length / ray_normalization)
         if self.GPU:
             proj = dest.copy_to_host().reshape([nViews, nv, nu]).astype(np.float32)
         return proj

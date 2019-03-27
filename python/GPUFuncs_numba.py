@@ -388,9 +388,328 @@ def distance_project_on_z_legacy(Dest, Src, slope_x1, slope_x2, slope_y1, slope_
                         cuda.atomic.add(Dest, pix_num, Src[(iz * nx * ny) + l * nx + k] * weight1 * weight2)
 
 
+@cuda.jit('float32(float32,float32,float32,float32,float32)', device=True)
+def fx(x, y, z, angle1, angle2):
+    angle = f_angle(x, y)
+    new_pos = x * cos(angle2) * cos(angle1) + y * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * sin(
+        angle) - z * sin(angle2) * sin(angle1) * cos(angle)
+    return new_pos
+
+
+@cuda.jit('float32(float32,float32,float32,float32,float32)', device=True)
+def fy(x, y, z, angle1, angle2):
+    angle = f_angle(x, y)
+    new_pos = y * cos(angle2) * cos(angle1) - x * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * cos(
+        angle) + z * sin(angle2) * sin(angle1) * sin(angle)
+    return new_pos
+
+
+@cuda.jit('float32(float32,float32,float32,float32,float32)', device=True)
+def fz(x, y, z, angle1, angle2):
+    new_pos = z * cos(angle2) + sqrt(pow(x, 2) + pow(y, 2)) * sin(angle2)
+    return new_pos
+
+
+@cuda.jit(
+    'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32,float32,float32,float32,float32,float32,float32,float32,int16)')
+def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param, SourceX, SourceY, SourceZ,
+                               DetectorX, DetectorY, DetectorZ, angle1, angle2, angle_ind):
+    tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
+    ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
+    tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
+    dx = param[0]
+    dy = param[1]
+    dz = param[2]
+    nx = int(param[3])
+    ny = int(param[4])
+    nz = int(param[5])
+    nu = int(param[6])
+    nv = int(param[7])
+    du = param[8]
+    dv = param[9]
+    R = param[18]
+    N = nx * ny * nz
+    if tid < N:
+        iz = int((tid * 1.0) / (nx * ny * 1.0))
+        iy = int((tid - (iz * nx * ny)) / (nx * 1.0))
+        ix = int((tid - iz * nx * ny - iy * nx))
+
+        xx = Xplane[ix]
+        yy = Yplane[iy]
+        zz = Zplane[iz]
+        new_angle = f_angle(xx, yy)
+        yc = yy * cos(angle2) * cos(angle1) - xx * cos(angle2) * sin(angle1) - zz * sin(angle2) * cos(angle1) * cos(
+            new_angle) + zz * sin(angle2) * sin(angle1) * sin(new_angle)
+
+        x1 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y1 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z1 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x2 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y2 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z2 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x3 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y3 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z3 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x4 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y4 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z4 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x5 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y5 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z5 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x6 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y6 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z6 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x7 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y7 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z7 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x8 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y8 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z8 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        u_slope1 = (SourceX - x1) / (SourceY - y1)
+        u_slope2 = (SourceX - x2) / (SourceY - y2)
+        u_slope3 = (SourceX - x3) / (SourceY - y3)
+        u_slope4 = (SourceX - x4) / (SourceY - y4)
+        u_slope5 = (SourceX - x5) / (SourceY - y5)
+        u_slope6 = (SourceX - x6) / (SourceY - y6)
+        u_slope7 = (SourceX - x7) / (SourceY - y7)
+        u_slope8 = (SourceX - x8) / (SourceY - y8)
+        slope_min = min(u_slope1, u_slope2, u_slope3, u_slope4, u_slope5, u_slope6, u_slope7, u_slope8)
+        slope_max = max(u_slope1, u_slope2, u_slope3, u_slope4, u_slope5, u_slope6, u_slope7, u_slope8)
+
+        coord_u1 = (slope_min * DetectorY) + (SourceX - slope_min * SourceY)
+        coord_u2 = (slope_max * DetectorY) + (SourceX - slope_max * SourceY)
+        index_u1 = floor((coord_u1 - Uplane[0]) * 1.0 / du)
+        index_u2 = floor((coord_u2 - Uplane[0]) * 1.0 / du)
+        s_index_u = min(index_u1, index_u2)
+        e_index_u = max(index_u1, index_u2)
+
+        v_slope1 = (SourceZ - z1) / (SourceY - y1)
+        v_slope2 = (SourceZ - z2) / (SourceY - y2)
+        v_slope3 = (SourceZ - z3) / (SourceY - y3)
+        v_slope4 = (SourceZ - z4) / (SourceY - y4)
+        v_slope5 = (SourceZ - z5) / (SourceY - y5)
+        v_slope6 = (SourceZ - z6) / (SourceY - y6)
+        v_slope7 = (SourceZ - z7) / (SourceY - y7)
+        v_slope8 = (SourceZ - z8) / (SourceY - y8)
+
+        slope_min = min(v_slope1, v_slope2, v_slope3, v_slope4, v_slope5, v_slope6, v_slope7, v_slope8)
+        slope_max = max(v_slope1, v_slope2, v_slope3, v_slope4, v_slope5, v_slope6, v_slope7, v_slope8)
+        coord_v1 = (slope_min * DetectorY) + (SourceZ - slope_min * SourceY)
+        coord_v2 = (slope_max * DetectorY) + (SourceZ - slope_max * SourceY)
+        index_v1 = floor((coord_v1 - Vplane[0]) * 1.0 / dv)
+        index_v2 = floor((coord_v2 - Vplane[0]) * 1.0 / dv)
+
+        s_index_v = min(index_v1, index_v2)
+        e_index_v = max(index_v1, index_v2)
+
+        InterpWeight = (pow(R, 2)) / (pow((R - yc), 2))
+
+        for k in range(s_index_v, e_index_v + 1):
+            if k >= 0 and k <= nv - 1:
+                weight1 = weight_calculator1(k, s_index_v, e_index_v, coord_v1, coord_v2, dv, Vplane[k], Vplane[k + 1])
+                for l in range(s_index_u, e_index_u + 1):
+                    if l >= 0 and l <= nu - 1:
+                        weight2 = weight_calculator2(l, s_index_u, e_index_u, coord_u1, coord_u2, du, Uplane[l],
+                                                     Uplane[l + 1])
+                        # cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
+                        cuda.atomic.add(Dest, tid,
+                                        Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
+
+
+@cuda.jit(
+    'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32,float32,float32,float32,float32,float32,float32,float32,int16)')
+def curved_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param, SourceX, SourceY, SourceZ,
+                                 DetectorX, DetectorY, DetectorZ, angle1, angle2, angle_ind):
+    tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
+    ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
+    tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
+    dx = param[0]
+    dy = param[1]
+    dz = param[2]
+    nx = int(param[3])
+    ny = int(param[4])
+    nz = int(param[5])
+    nu = int(param[6])
+    nv = int(param[7])
+    du = param[8]
+    dv = param[9]
+    R = param[18]
+
+    N = nx * ny * nz
+    if tid < N:
+        iz = int((tid * 1.0) / (nx * ny * 1.0))
+        iy = int((tid - (iz * nx * ny)) / (nx * 1.0))
+        ix = int((tid - iz * nx * ny - iy * nx))
+
+        xx = Xplane[ix]
+        yy = Yplane[iy]
+        zz = Zplane[iz]
+        new_angle = f_angle(xx, yy)
+        yc = yy * cos(angle2) * cos(angle1) - xx * cos(angle2) * sin(angle1) - zz * sin(angle2) * cos(angle1) * cos(
+            new_angle) + zz * sin(angle2) * sin(angle1) * sin(new_angle)
+
+        x1 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y1 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z1 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x2 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y2 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z2 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x3 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y3 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z3 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x4 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y4 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz - dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz - dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z4 = (zz - dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x5 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y5 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z5 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x6 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y6 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z6 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x7 = (xx + dx / 2.0) * cos(angle2) * cos(angle1) + (yy - dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y7 = (yy - dy / 2.0) * cos(angle2) * cos(angle1) - (xx + dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z7 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        x8 = (xx - dx / 2.0) * cos(angle2) * cos(angle1) + (yy + dy / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * sin(new_angle) - (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * cos(new_angle)
+        y8 = (yy + dy / 2.0) * cos(angle2) * cos(angle1) - (xx - dx / 2.0) * cos(angle2) * sin(angle1) - (
+                zz + dz / 2.0) * sin(angle2) * cos(angle1) * cos(new_angle) + (zz + dz / 2.0) * sin(angle2) * sin(
+            angle1) * sin(new_angle)
+        z8 = (zz + dz / 2.0) * cos(angle2) + sqrt(pow(xx, 2) + pow(yy, 2)) * sin(angle2)
+
+        u_slope1 = (SourceX - x1) / (SourceY - y1)
+        u_slope2 = (SourceX - x2) / (SourceY - y2)
+        u_slope3 = (SourceX - x3) / (SourceY - y3)
+        u_slope4 = (SourceX - x4) / (SourceY - y4)
+        u_slope5 = (SourceX - x5) / (SourceY - y5)
+        u_slope6 = (SourceX - x6) / (SourceY - y6)
+        u_slope7 = (SourceX - x7) / (SourceY - y7)
+        u_slope8 = (SourceX - x8) / (SourceY - y8)
+        slope_min = min(u_slope1, u_slope2, u_slope3, u_slope4, u_slope5, u_slope6, u_slope7, u_slope8)
+        slope_max = max(u_slope1, u_slope2, u_slope3, u_slope4, u_slope5, u_slope6, u_slope7, u_slope8)
+
+        # coord_u1 = (slope_min * DetectorY) + (SourceX - slope_min * SourceY)
+        # coord_u2 = (slope_max * DetectorY) + (SourceX - slope_max * SourceY)
+        # coord_u1 = slope_min * SDD + SourceX
+        # coord_u2 = slope_max * SDD + SourceX
+        coord_u1 = -atan(slope_min)
+        coord_u2 = -atan(slope_max)
+        index_u1 = floor((coord_u1 - Uplane[0]) * 1.0 / du)
+        index_u2 = floor((coord_u2 - Uplane[0]) * 1.0 / du)
+        s_index_u = min(index_u1, index_u2)
+        e_index_u = max(index_u1, index_u2)
+
+        v_slope1 = (SourceZ - z1) / (SourceY - y1)
+        v_slope2 = (SourceZ - z2) / (SourceY - y2)
+        v_slope3 = (SourceZ - z3) / (SourceY - y3)
+        v_slope4 = (SourceZ - z4) / (SourceY - y4)
+        v_slope5 = (SourceZ - z5) / (SourceY - y5)
+        v_slope6 = (SourceZ - z6) / (SourceY - y6)
+        v_slope7 = (SourceZ - z7) / (SourceY - y7)
+        v_slope8 = (SourceZ - z8) / (SourceY - y8)
+
+        slope_min = min(v_slope1, v_slope2, v_slope3, v_slope4, v_slope5, v_slope6, v_slope7, v_slope8)
+        slope_max = max(v_slope1, v_slope2, v_slope3, v_slope4, v_slope5, v_slope6, v_slope7, v_slope8)
+        coord_v1 = (slope_min * DetectorY) + (SourceZ - slope_min * SourceY)
+        coord_v2 = (slope_max * DetectorY) + (SourceZ - slope_max * SourceY)
+        index_v1 = floor((coord_v1 - Vplane[0]) * 1.0 / dv)
+        index_v2 = floor((coord_v2 - Vplane[0]) * 1.0 / dv)
+
+        s_index_v = min(index_v1, index_v2)
+        e_index_v = max(index_v1, index_v2)
+
+        InterpWeight = (pow(R, 2)) / (pow((R - yc), 2))
+
+        for k in range(s_index_v, e_index_v + 1):
+            if k >= 0 and k <= nv - 1:
+                weight1 = weight_calculator1(k, s_index_v, e_index_v, coord_v1, coord_v2, dv, Vplane[k], Vplane[k + 1])
+                for l in range(s_index_u, e_index_u + 1):
+                    if l >= 0 and l <= nu - 1:
+                        weight2 = weight_calculator2(l, s_index_u, e_index_u, coord_u1, coord_u2, du, Uplane[l],
+                                                     Uplane[l + 1])
+                        # cuda.atomic.add(Dest, tid, Src[k * nu + l] * weight1 * weight2 * InterpWeight)
+                        cuda.atomic.add(Dest, tid,
+                                        Src[angle_ind * nu * nv + k * nu + l] * weight1 * weight2 * InterpWeight)
+
+
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
-def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param):
+def flat_distance_backproj_arb_legacy(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
@@ -505,7 +824,7 @@ def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane
 
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:])')
-def curved_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param):
+def curved_distance_backproj_arb_legacy(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param):
     tx = cuda.blockDim.x * cuda.blockIdx.x + cuda.threadIdx.x
     ty = cuda.blockDim.y * cuda.blockIdx.y + cuda.threadIdx.y
     tid = ty * cuda.gridDim.x * cuda.blockDim.x + tx
