@@ -89,12 +89,12 @@ class Reconstruction(object):
         else:
             self.GPU = False
 
-    def LoadProj(self, filename, image_size, dtype=np.float32):
-        self.proj = np.fromfile(filename, dtype=dtype).reshape(image_size)
+    def LoadProj(self, filename, dtype=np.float32):
+        self.proj = np.fromfile(filename, dtype=dtype).reshape([self.nView, self.nv, self.nu])
         # return proj
 
-    def LoadRecon(self, filename, image_size, dtype=np.float32):
-        self.image = np.fromfile(filename, dtype=dtype).reshape(image_size)
+    def LoadRecon(self, filename, dtype=np.float32):
+        self.image = np.fromfile(filename, dtype=dtype).reshape([self.nz, self.ny, self.nx])
         # return image
 
     def SaveProj(self, filename):
@@ -457,7 +457,7 @@ class Reconstruction(object):
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 angle1 = angle[i]
                 angle2 = 0.0
-                
+
                 distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
                                                                       z_pixel_gpu, u_plane_gpu, v_plane_gpu,
                                                                       recon_param_gpu, Source[0], Source[1], Source[2],
