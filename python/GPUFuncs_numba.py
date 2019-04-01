@@ -388,28 +388,6 @@ def distance_project_on_z_legacy(Dest, Src, slope_x1, slope_x2, slope_y1, slope_
                         cuda.atomic.add(Dest, pix_num, Src[(iz * nx * ny) + l * nx + k] * weight1 * weight2)
 
 
-@cuda.jit('float32(float32,float32,float32,float32,float32)', device=True)
-def fx(x, y, z, angle1, angle2):
-    angle = f_angle(x, y)
-    new_pos = x * cos(angle2) * cos(angle1) + y * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * sin(
-        angle) - z * sin(angle2) * sin(angle1) * cos(angle)
-    return new_pos
-
-
-@cuda.jit('float32(float32,float32,float32,float32,float32)', device=True)
-def fy(x, y, z, angle1, angle2):
-    angle = f_angle(x, y)
-    new_pos = y * cos(angle2) * cos(angle1) - x * cos(angle2) * sin(angle1) - z * sin(angle2) * cos(angle1) * cos(
-        angle) + z * sin(angle2) * sin(angle1) * sin(angle)
-    return new_pos
-
-
-@cuda.jit('float32(float32,float32,float32,float32,float32)', device=True)
-def fz(x, y, z, angle1, angle2):
-    new_pos = z * cos(angle2) + sqrt(pow(x, 2) + pow(y, 2)) * sin(angle2)
-    return new_pos
-
-
 @cuda.jit(
     'void(float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32[:],float32,float32,float32,float32,float32,float32,float32,float32,int16)')
 def flat_distance_backproj_arb(Dest, Src, Xplane, Yplane, Zplane, Uplane, Vplane, param, SourceX, SourceY, SourceZ,
