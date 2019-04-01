@@ -242,7 +242,7 @@ class Reconstruction(object):
         dv = -self.dv
         ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
         R = self.SAD
-        D = self.SDD
+        D = self.SDD - R
 
         [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
         weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
