@@ -401,6 +401,7 @@ class Reconstruction(object):
             distance_backproj_arb = curved_distance_backproj_arb
         elif self.DetectorShape == 'Flat':
             distance_backproj_arb = flat_distance_backproj_arb
+            # distance_backproj_arb = flat_distance_backproj_arb_legacy
         else:
             print('Detector shape is not supported')
             sys.exit()
@@ -444,11 +445,13 @@ class Reconstruction(object):
             z_pixel_gpu = cuda.to_device(Zpixel.astype(np.float32))
             u_plane_gpu = cuda.to_device(ki.astype(np.float32))
             v_plane_gpu = cuda.to_device(p.astype(np.float32))
-            #Q_gpu = cuda.device_array(nu * nv, dtype=np.float32)
+            # Q_gpu = cuda.device_array(nu * nv, dtype=np.float32)
             recon_param = np.array(
                 [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                  Detector[2], angle[0], 0.0, R, 0]).astype(np.float32)
             recon_param_gpu = cuda.to_device(recon_param.flatten().astype(np.float32))
+            # recon_param_gpu = cuda.device_array(recon_param.shape, dtype=np.float32)
+
             Q = self.proj * dtheta
             Q_gpu = cuda.to_device(Q.flatten().astype(np.float32))
             for i in range(nViews):
@@ -457,13 +460,14 @@ class Reconstruction(object):
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 angle1 = angle[i]
                 angle2 = 0.0
-
                 distance_backproj_arb[blockspergrid, threadsperblock](dest, Q_gpu, x_pixel_gpu, y_pixel_gpu,
                                                                       z_pixel_gpu, u_plane_gpu, v_plane_gpu,
                                                                       recon_param_gpu, Source[0], Source[1], Source[2],
                                                                       Detector[0], Detector[1], Detector[2], angle1,
                                                                       angle2, i)
+                cuda.synchronize()
             del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
+            # cuda.synchronize()
             recon = dest.copy_to_host().reshape([nz, ny, nx]).astype(np.float32)
 
             del dest
