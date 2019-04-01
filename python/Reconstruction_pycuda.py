@@ -224,7 +224,7 @@ class Reconstruction(object):
         dv = -self.dv
         ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
         R = self.SAD
-        D = self.SDD
+        D = self.SDD - R
         [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
         weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
 
@@ -370,7 +370,7 @@ class Reconstruction(object):
                     du = du / D
                     distance_backproj_arb = mod.get_function('curved_distance_backproj_arb')
                 elif self.DetectorShape == 'Flat':
-                    #distance_backproj_arb = mod.get_function('flat_distance_backproj_arb')
+                    # distance_backproj_arb = mod.get_function('flat_distance_backproj_arb')
                     distance_backproj_arb = mod.get_function('flat_distance_backproj_arb2')
                 else:
                     raise ErrorDescription(1)
@@ -386,31 +386,33 @@ class Reconstruction(object):
             v_plane_gpu = pycuda.gpuarray.to_gpu(p.astype(np.float32))
             recon_param = np.array(
                 [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
-                 Detector[2], angle[0], 0.0, R,0]).astype(np.float32)
-            recon_param_gpu=pycuda.gpuarray.zeros(20,np.float32)
+                 Detector[2], angle[0], 0.0, R, 0]).astype(np.float32)
+            recon_param_gpu = pycuda.gpuarray.zeros(20, np.float32)
             # recon_param_gpu = drv.mem_alloc(recon_param.nbytes)
             recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param.flatten().astype(np.float32))
             Q = self.proj * dtheta
             Q_gpu = pycuda.gpuarray.to_gpu(Q.flatten().astype(np.float32))
             for i in range(nViews):
                 log.debug(i)
-                #Q = self.proj[i, :, :] * dtheta
-                #Q = Q.flatten().astype(np.float32)
+                # Q = self.proj[i, :, :] * dtheta
+                # Q = Q.flatten().astype(np.float32)
                 Source[2] = source_z0 + H * angle[i] / (2 * pi)
                 Detector[2] = detector_z0 + H * angle[i] / (2 * pi)
                 angle1 = np.float32(angle[i])
                 angle2 = np.float32(0.0)
-                recon_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1], Detector[2], angle[i], 0.0, R,i]).astype(np.float32)
+                recon_param = np.array(
+                    [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
+                     Detector[2], angle[i], 0.0, R, i]).astype(np.float32)
                 recon_param_gpu.set(recon_param.flatten())
                 # drv.memcpy_htod(recon_param_gpu, recon_param)
                 distance_backproj_arb(dest, Q_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, u_plane_gpu, v_plane_gpu,
                                       recon_param_gpu, block=(blockX, blockY, blockZ),
                                       grid=(gridX, gridY))
-                #distance_backproj_arb(dest, Q_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, u_plane_gpu, v_plane_gpu,
+                # distance_backproj_arb(dest, Q_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, u_plane_gpu, v_plane_gpu,
                 #                      recon_param_gpu, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                 #                      Detector[2], angle1, angle2, np.uint16(i), block=(blockX, blockY, blockZ),
                 #                      grid=(gridX, gridY))
-                #pycuda.autoinit.context.synchronize()
+                # pycuda.autoinit.context.synchronize()
             del u_plane_gpu, v_plane_gpu, x_pixel_gpu, y_pixel_gpu, z_pixel_gpu, recon_param_gpu
             recon = dest.get().reshape([nz, ny, nx]).astype(np.float32)
             del dest
@@ -933,7 +935,7 @@ class Reconstruction(object):
                                 raise ErrorDescription(6)
                         except ErrorDescription as e:
                             print(e)
-                    #slope_x1_gpu=pycuda.gpuarray.to_gpu(SlopesU1.flatten().astype(np.float32))
+                            # slope_x1_gpu=pycuda.gpuarray.to_gpu(SlopesU1.flatten().astype(np.float32))
                             sys.exit()
 
                     proj_param = np.array([dx, dy, dz, nx, ny, nz, nu, nv, i]).astype(np.float32)
@@ -1033,7 +1035,7 @@ class Reconstruction(object):
                         proj[i, :, :] += self._distance_project_on_z(self.image, CoordX1, CoordX2, CoordY1, CoordY2,
                                                                      Xplane, Yplane, image_x1, image_x2, image_y1,
                                                                      image_y2, dx, dy, iz) * (
-                                                     intersection_length / ray_normalization)
+                                                 intersection_length / ray_normalization)
         if self.GPU:
             proj = dest.get().reshape([nViews, nv, nu]).astype(np.float32)
         return proj
