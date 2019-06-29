@@ -65,7 +65,7 @@ class Reconstruction(object):
         self.params = {'SourceInit': [0, 0, 0], 'DetectorInit': [0, 0, 0], 'StartAngle': 0,
                        'EndAngle': 0, 'NumberOfDetectorPixels': [0, 0], 'DetectorPixelSize': [0, 0],
                        'NumberOfViews': 0, 'ImagePixelSpacing': [0, 0, 0], 'NumberOfImage': [0, 0, 0],
-                       'PhantomCenter': [0, 0, 0], 'RotationOrigin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak',
+                       'PhantomCenter': [0, 0, 0], 'RotationOrigin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak','ReconCenter':[0,0,0],
                        'cutoff': 1, 'GPU': 0, 'DetectorShape': 'Flat', 'Pitch': 0}
         self.params = params
         [self.nu, self.nv] = self.params['NumberOfDetectorPixels']
