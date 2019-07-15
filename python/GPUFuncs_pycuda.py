@@ -8,7 +8,7 @@ def DefineGPUFuns():
     #include <stdio.h>
     #include "cuda_runtime.h"
     #include "device_launch_parameters.h"
-    #include "device_functions.h"
+    //#include "device_functions.h"
     #include "device_atomic_functions.h"
     
     __global__ void gpuInterpol1d(float* Dest, float* codomain,float* domain ,float* new_domain,float* params){
