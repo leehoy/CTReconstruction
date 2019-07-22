@@ -344,6 +344,7 @@ class Reconstruction(object):
         PhantomCenter = self.PhantomCenter
         ReconCenter = self.ReconCenter
         PhantomOffset = self.PhantomOffset
+        DetectorOffset = self.DetectorOffset
 
         dtheta = angle[1] - angle[0]
         Xpixel = ReconCenter[0] + PhantomOffset[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
@@ -351,6 +352,8 @@ class Reconstruction(object):
         Zpixel = ReconCenter[2] + PhantomOffset[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
         ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
+        ki += DetectorOffset[0]
+        p += DetectorOffset[1]
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
         if self.GPU:
             device = drv.Device(0)
