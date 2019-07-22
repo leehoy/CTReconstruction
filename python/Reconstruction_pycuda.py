@@ -67,7 +67,7 @@ class Reconstruction(object):
                        'ImagePixelSpacing': [0, 0, 0], 'NumberOfImage': [0, 0, 0], 'PhantomCenter': [0, 0, 0],
                        'RotationOrigin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak',
                        'ReconCenter': [0, 0, 0], 'cutoff': 1, 'GPU': 0, 'DetectorShape': 'Flat', 'Pitch': 0,
-                       'DetectorOffset': [0, 0], 'PhantomOffset': [0, 0, 0]}
+                       'DetectorOffset': [0, 0], 'DetectorRotation': [0, 0, 0]}
         self.params = params
         [self.nu, self.nv] = self.params['NumberOfDetectorPixels']
         [self.du, self.dv] = self.params['DetectorPixelSize']
@@ -93,7 +93,7 @@ class Reconstruction(object):
         self.detector_z0 = self.Detector[2]
         self.ReconCenter = self.params['ReconCenter']
         self.DetectorOffset = self.params['DetectorOffset']
-        self.PhantomOffset = self.params['PhantomOffset']
+        self.DetectorRotation = self.params['DetectorRotation']
         if self.params['GPU'] == 1:
             self.GPU = True
         else:
@@ -343,13 +343,13 @@ class Reconstruction(object):
         H = self.HelicalTrans
         PhantomCenter = self.PhantomCenter
         ReconCenter = self.ReconCenter
-        PhantomOffset = self.PhantomOffset
+        
         DetectorOffset = self.DetectorOffset
 
         dtheta = angle[1] - angle[0]
-        Xpixel = ReconCenter[0] + PhantomOffset[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
-        Ypixel = ReconCenter[1] + PhantomOffset[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
-        Zpixel = ReconCenter[2] + PhantomOffset[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
+        Xpixel = ReconCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
+        Ypixel = ReconCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
+        Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
         ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
         ki += DetectorOffset[0]
