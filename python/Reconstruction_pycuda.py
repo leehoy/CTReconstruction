@@ -67,7 +67,7 @@ class Reconstruction(object):
                        'ImagePixelSpacing': [0, 0, 0], 'NumberOfImage': [0, 0, 0], 'PhantomCenter': [0, 0, 0],
                        'RotationOrigin': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'ram-lak',
                        'ReconCenter': [0, 0, 0], 'cutoff': 1, 'GPU': 0, 'DetectorShape': 'Flat', 'Pitch': 0,
-                       'DetectorOffset': [0, 0], 'DetectorRotation': [0, 0, 0]}
+                       'DetectorOffset': [0, 0]}
         self.params = params
         [self.nu, self.nv] = self.params['NumberOfDetectorPixels']
         [self.du, self.dv] = self.params['DetectorPixelSize']
@@ -93,7 +93,6 @@ class Reconstruction(object):
         self.detector_z0 = self.Detector[2]
         self.ReconCenter = self.params['ReconCenter']
         self.DetectorOffset = self.params['DetectorOffset']
-        self.DetectorRotation = self.params['DetectorRotation']
         if self.params['GPU'] == 1:
             self.GPU = True
         else:
@@ -343,7 +342,7 @@ class Reconstruction(object):
         H = self.HelicalTrans
         PhantomCenter = self.PhantomCenter
         ReconCenter = self.ReconCenter
-        
+
         DetectorOffset = self.DetectorOffset
 
         dtheta = angle[1] - angle[0]
