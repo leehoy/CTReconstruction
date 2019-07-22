@@ -128,6 +128,8 @@ class Reconstruction(object):
         DetectorIndex[2, :, :] = Source[2] + SDD * sin(U) * eu[2] + SDD * cos(U) * ew[2] - V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.da - self.da / 2.0
         v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
+        u2 += self.DetectorOffset[0]
+        v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
         DetectorBoundary[0, :, :] = Source[0] + SDD * sin(U2) * eu[0] + SDD * cos(U2) * ew[0] - V2 * ev[0]
@@ -157,6 +159,8 @@ class Reconstruction(object):
         DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] - V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.du - self.du / 2.0
         v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
+        u2 += self.DetectorOffset[0]
+        v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
         DetectorBoundary[0, :, :] = Source[0] + U2 * eu[0] + SDD * ew[0] - V2 * ev[0]
