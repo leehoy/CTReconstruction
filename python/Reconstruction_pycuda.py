@@ -778,16 +778,16 @@ class Reconstruction(object):
         detector_z0 = self.detector_z0
         H = self.HelicalTrans
         PhantomCenter = self.PhantomCenter
-
+        ReconCenter = self.ReconCenter
         SAD = self.SAD
         SDD = self.SDD
         angle = np.linspace(sAngle, eAngle, nViews + 1)
         angle = angle[0:-1]
         proj = np.zeros([nViews, nv, nu], dtype=np.float32)
 
-        Xplane = PhantomCenter[0] + (np.arange(0, nx + 1) - (nx - 1) / 2.0) * dx
-        Yplane = PhantomCenter[1] + (np.arange(0, ny + 1) - (ny - 1) / 2.0) * dy
-        Zplane = PhantomCenter[2] + (np.arange(0, nz + 1) - (nz - 1) / 2.0) * dz
+        Xplane = ReconCenter[0] + (np.arange(0, nx + 1) - (nx - 1) / 2.0) * dx
+        Yplane = ReconCenter[1] + (np.arange(0, ny + 1) - (ny - 1) / 2.0) * dy
+        Zplane = ReconCenter[2] + (np.arange(0, nz + 1) - (nz - 1) / 2.0) * dz
         Xplane = Xplane - dx / 2
         Yplane = Yplane - dy / 2
         Zplane = Zplane - dz / 2
