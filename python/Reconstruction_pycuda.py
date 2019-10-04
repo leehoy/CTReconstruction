@@ -221,8 +221,8 @@ class Reconstruction(object):
         return filter
 
     def Filtering(self):
-        ki = (np.arange(0, self.nu + 1) - self.nu / 2.0) * self.du
-        p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * -1.0 * self.dv
+        ki = (np.arange(0, self.nu) - (self.nu - 1) / 2.0) * self.du
+        p = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * -1.0 * self.dv
         ki += self.DetectorOffset[0]
         p += self.DetectorOffset[1]
         for i in range(self.proj.shape[0]):
@@ -236,7 +236,7 @@ class Reconstruction(object):
         ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
         R = self.SAD
         D = self.SDD - R
-        [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
+        [kk, pp] = np.meshgrid(ki * R / (R + D), p * R / (R + D))
         weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
 
         deltaS = du * R / (R + D)
@@ -350,12 +350,12 @@ class Reconstruction(object):
         Xpixel = ReconCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
         Ypixel = ReconCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
         Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
-        # ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
-        # p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
-        ki = (np.arange(0, nu + 1) - (nu) / 2.0) * du
-        p = (np.arange(0, nv + 1) - (nv) / 2.0) * dv
-        ki += DetectorOffset[0]
-        p += DetectorOffset[1]
+        ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
+        p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
+        # ki = (np.arange(0, nu + 1) - (nu ) / 2.0) * du
+        # p = (np.arange(0, nv + 1) - (nv ) / 2.0) * dv
+        ki -= DetectorOffset[0]
+        p -= DetectorOffset[1]
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
         if self.GPU:
             device = drv.Device(0)
