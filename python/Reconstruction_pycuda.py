@@ -354,7 +354,7 @@ class Reconstruction(object):
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
         # ki = (np.arange(0, nu + 1) - (nu ) / 2.0) * du
         # p = (np.arange(0, nv + 1) - (nv ) / 2.0) * dv
-        ki -= DetectorOffset[0]
+        ki += DetectorOffset[0]
         p -= DetectorOffset[1]
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
         if self.GPU:
