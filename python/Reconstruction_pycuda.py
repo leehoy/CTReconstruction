@@ -116,7 +116,7 @@ class Reconstruction(object):
         ev = [0, 0, 1]
         self.da = self.du / self.SDD
         u = (np.arange(0, self.nu) - (self.nu - 1) / 2.0) * self.da
-        v = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * -self.dv
+        v = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * self.dv
         u += self.DetectorOffset[0]
         v += self.DetectorOffset[1]
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
@@ -126,7 +126,7 @@ class Reconstruction(object):
         DetectorIndex[1, :, :] = Source[1] + SDD * sin(U) * eu[1] + SDD * cos(U) * ew[1] - V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + SDD * sin(U) * eu[2] + SDD * cos(U) * ew[2] - V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.da - self.da / 2.0
-        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * -self.dv - self.dv / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
         u2 += self.DetectorOffset[0]
         v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
@@ -148,7 +148,7 @@ class Reconstruction(object):
         # [nx, ny, nz] = self.params['NumberOfImage']
         # dv=-1.0*dv
         u = (np.arange(0, self.nu) - (self.nu - 1.0) / 2.0) * self.du
-        v = (np.arange(0, self.nv) - (self.nv - 1.0) / 2.0) * -self.dv
+        v = (np.arange(0, self.nv) - (self.nv - 1.0) / 2.0) * self.dv
         u += self.DetectorOffset[0]
         v += self.DetectorOffset[1]
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
@@ -157,7 +157,7 @@ class Reconstruction(object):
         DetectorIndex[1, :, :] = Source[1] + U * eu[1] + SDD * ew[1] - V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] - V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.du - self.du / 2.0
-        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * -self.dv - self.dv / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
         u2 += self.DetectorOffset[0]
         v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
@@ -223,7 +223,7 @@ class Reconstruction(object):
     def Filtering(self):
 
         ki = (np.arange(0, self.nu + 1) - self.nu / 2.0) * self.du
-        p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * -self.dv
+        p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * -1.0 * self.dv
         for i in range(self.proj.shape[0]):
             self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p)
 
