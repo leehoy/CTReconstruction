@@ -221,9 +221,10 @@ class Reconstruction(object):
         return filter
 
     def Filtering(self):
-
         ki = (np.arange(0, self.nu + 1) - self.nu / 2.0) * self.du
         p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * -1.0 * self.dv
+        ki += self.DetectorOffset[0]
+        p += self.DetectorOffset[1]
         for i in range(self.proj.shape[0]):
             self.proj[i, :, :] = self.filter_proj(self.proj[i, :, :], ki, p)
 
