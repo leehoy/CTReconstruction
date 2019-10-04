@@ -1,5 +1,5 @@
 # from Reconstruction import Reconstruction
-from Reconstruction_numba import Reconstruction
+from Reconstruction_pycuda import Reconstruction
 import numpy as np
 import glob, sys, os
 import logging
@@ -14,12 +14,12 @@ params = {'SourceInit': [0, 1000.0, 0], 'DetectorInit': [0, -500.0, 0], 'StartAn
           'NumberOfDetectorPixels': [1024, 768], 'DetectorPixelSize': [0.5, 0.5], 'NumberOfViews': 720,
           'ImagePixelSpacing': [0.5, 0.5, 0.5], 'NumberOfImage': [512, 512, 512], 'PhantomCenter': [0, 0, 0],
           'RotationOrigin': [0, 0, 0], 'ReconCenter': [0, 0, 0], 'Method': 'Distance', 'FilterType': 'hann',
-          'cutoff': 1, 'GPU': 1, 'DetectorShape': 'Flat', 'Pitch': 0}
+          'cutoff': 1, 'GPU': 1, 'DetectorShape': 'Flat', 'Pitch': 0, 'DetectorOffset': [0, 0]}
 R = Reconstruction(params)
 filename = 'Shepp_Logan_3d_512.dat'
 # filename = 'Shepp_Logan_3d_256.dat'
 
-R.LoadRecon(filename, params['NumberOfImage'])
+R.LoadRecon(filename)
 ph = R.image
 start_time = time.time()
 R.forward()
