@@ -350,8 +350,10 @@ class Reconstruction(object):
         Xpixel = ReconCenter[0] + (np.arange(0, nx) - (nx - 1) / 2.0) * dx
         Ypixel = ReconCenter[1] + (np.arange(0, ny) - (ny - 1) / 2.0) * dy
         Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
-        ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
-        p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
+        # ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
+        # p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
+        ki = (np.arange(0, nu + 1) - (nu) / 2.0) * du
+        p = (np.arange(0, nv + 1) - (nv) / 2.0) * dv
         ki += DetectorOffset[0]
         p += DetectorOffset[1]
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
