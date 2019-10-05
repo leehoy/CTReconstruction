@@ -116,24 +116,24 @@ class Reconstruction(object):
         ev = [0, 0, 1]
         self.da = self.du / self.SDD
         u = (np.arange(0, self.nu) - (self.nu - 1) / 2.0) * self.da
-        v = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * self.dv
+        v = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * -1.0 * self.dv
         u += self.DetectorOffset[0]
         v += self.DetectorOffset[1]
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
         U, V = np.meshgrid(u, v)
         # V, U = np.meshgrid(v, u)
-        DetectorIndex[0, :, :] = Source[0] + SDD * sin(U) * eu[0] + SDD * cos(U) * ew[0] - V * ev[0]
-        DetectorIndex[1, :, :] = Source[1] + SDD * sin(U) * eu[1] + SDD * cos(U) * ew[1] - V * ev[1]
-        DetectorIndex[2, :, :] = Source[2] + SDD * sin(U) * eu[2] + SDD * cos(U) * ew[2] - V * ev[2]
+        DetectorIndex[0, :, :] = Source[0] + SDD * sin(U) * eu[0] + SDD * cos(U) * ew[0] + V * ev[0]
+        DetectorIndex[1, :, :] = Source[1] + SDD * sin(U) * eu[1] + SDD * cos(U) * ew[1] + V * ev[1]
+        DetectorIndex[2, :, :] = Source[2] + SDD * sin(U) * eu[2] + SDD * cos(U) * ew[2] + V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.da - self.da / 2.0
-        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * -1.0 * self.dv - self.dv / 2.0
         u2 += self.DetectorOffset[0]
         v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
-        DetectorBoundary[0, :, :] = Source[0] + SDD * sin(U2) * eu[0] + SDD * cos(U2) * ew[0] - V2 * ev[0]
-        DetectorBoundary[1, :, :] = Source[1] + SDD * sin(U2) * eu[1] + SDD * cos(U2) * ew[1] - V2 * ev[1]
-        DetectorBoundary[2, :, :] = Source[2] + SDD * sin(U2) * eu[2] + SDD * cos(U2) * ew[2] - V2 * ev[2]
+        DetectorBoundary[0, :, :] = Source[0] + SDD * sin(U2) * eu[0] + SDD * cos(U2) * ew[0] + V2 * ev[0]
+        DetectorBoundary[1, :, :] = Source[1] + SDD * sin(U2) * eu[1] + SDD * cos(U2) * ew[1] + V2 * ev[1]
+        DetectorBoundary[2, :, :] = Source[2] + SDD * sin(U2) * eu[2] + SDD * cos(U2) * ew[2] + V2 * ev[2]
         return DetectorIndex, DetectorBoundary
 
     def FlatDetectorConstruction(self, Source, DetectorCenter, SDD, angle):
@@ -148,23 +148,23 @@ class Reconstruction(object):
         # [nx, ny, nz] = self.params['NumberOfImage']
         # dv=-1.0*dv
         u = (np.arange(0, self.nu) - (self.nu - 1.0) / 2.0) * self.du
-        v = (np.arange(0, self.nv) - (self.nv - 1.0) / 2.0) * self.dv
+        v = (np.arange(0, self.nv) - (self.nv - 1.0) / 2.0) * -1.0 * self.dv
         u += self.DetectorOffset[0]
         v += self.DetectorOffset[1]
         DetectorIndex = np.zeros([3, len(v), len(u)], dtype=np.float32)
         U, V = np.meshgrid(u, v)
-        DetectorIndex[0, :, :] = Source[0] + U * eu[0] + SDD * ew[0] - V * ev[0]
-        DetectorIndex[1, :, :] = Source[1] + U * eu[1] + SDD * ew[1] - V * ev[1]
-        DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] - V * ev[2]
+        DetectorIndex[0, :, :] = Source[0] + U * eu[0] + SDD * ew[0] + V * ev[0]
+        DetectorIndex[1, :, :] = Source[1] + U * eu[1] + SDD * ew[1] + V * ev[1]
+        DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] + V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.du - self.du / 2.0
-        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * self.dv - self.dv / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * -1.0 * self.dv - self.dv / 2.0
         u2 += self.DetectorOffset[0]
         v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
         U2, V2 = np.meshgrid(u2, v2)
-        DetectorBoundary[0, :, :] = Source[0] + U2 * eu[0] + SDD * ew[0] - V2 * ev[0]
-        DetectorBoundary[1, :, :] = Source[1] + U2 * eu[1] + SDD * ew[1] - V2 * ev[1]
-        DetectorBoundary[2, :, :] = Source[2] + U2 * eu[2] + SDD * ew[2] - V2 * ev[2]
+        DetectorBoundary[0, :, :] = Source[0] + U2 * eu[0] + SDD * ew[0] + V2 * ev[0]
+        DetectorBoundary[1, :, :] = Source[1] + U2 * eu[1] + SDD * ew[1] + V2 * ev[1]
+        DetectorBoundary[2, :, :] = Source[2] + U2 * eu[2] + SDD * ew[2] + V2 * ev[2]
         return DetectorIndex, DetectorBoundary
 
     @staticmethod
@@ -352,10 +352,11 @@ class Reconstruction(object):
         Zpixel = ReconCenter[2] + (np.arange(0, nz) - (nz - 1) / 2.0) * dz
         ki = (np.arange(0, nu + 1) - (nu - 1) / 2.0) * du
         p = (np.arange(0, nv + 1) - (nv - 1) / 2.0) * dv
+
         # ki = (np.arange(0, nu + 1) - (nu ) / 2.0) * du
         # p = (np.arange(0, nv + 1) - (nv ) / 2.0) * dv
         ki += DetectorOffset[0]
-        p -= DetectorOffset[1]
+        p += DetectorOffset[1]
         recon = np.zeros([nz, ny, nx], dtype=np.float32)
         if self.GPU:
             device = drv.Device(0)
