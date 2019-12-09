@@ -157,7 +157,7 @@ class Reconstruction(object):
         DetectorIndex[1, :, :] = Source[1] + U * eu[1] + SDD * ew[1] + V * ev[1]
         DetectorIndex[2, :, :] = Source[2] + U * eu[2] + SDD * ew[2] + V * ev[2]
         u2 = (np.arange(0, self.nu + 1) - (self.nu - 1) / 2.0) * self.du - self.du / 2.0
-        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * -1.0 * self.dv - self.dv / 2.0
+        v2 = (np.arange(0, self.nv + 1) - (self.nv - 1) / 2.0) * -1.0 * self.dv + self.dv / 2.0
         u2 += self.DetectorOffset[0]
         v2 += self.DetectorOffset[1]
         DetectorBoundary = np.zeros([3, len(v2), len(u2)], dtype=np.float32)
@@ -221,8 +221,8 @@ class Reconstruction(object):
         return filter
 
     def Filtering(self):
-        ki = (np.arange(0, self.nu) - (self.nu - 1) / 2.0) * self.du
-        p = (np.arange(0, self.nv) - (self.nv - 1) / 2.0) * -1.0 * self.dv
+        ki = (np.arange(0, self.nu + 1) - self.nu / 2.0) * self.du
+        p = (np.arange(0, self.nv + 1) - self.nv / 2.0) * -1.0 * self.dv
         ki += self.DetectorOffset[0]
         p += self.DetectorOffset[1]
         for i in range(self.proj.shape[0]):
@@ -236,7 +236,7 @@ class Reconstruction(object):
         ZeroPaddedLength = int(2 ** (ceil(log2(2.0 * (nu - 1)))))
         R = self.SAD
         D = self.SDD - R
-        [kk, pp] = np.meshgrid(ki * R / (R + D), p * R / (R + D))
+        [kk, pp] = np.meshgrid(ki[0:-1] * R / (R + D), p[0:-1] * R / (R + D))
         weight = R / (sqrt(R ** 2.0 + kk ** 2.0 + pp ** 2.0))
 
         deltaS = du * R / (R + D)
@@ -374,7 +374,7 @@ class Reconstruction(object):
                 blockX = 32
                 blockY = 32
                 blockZ = 1
-                GridSize = ceil(TotalSize / (blockX * blockY))
+                GridSize = ceil(TotalSize / (blockX * blockY * 1.0))
                 try:
                     if (GridSize < MAX_GRID_DIM_X):
                         [gridX, gridY] = Reconstruction._optimalGrid(GridSize)
