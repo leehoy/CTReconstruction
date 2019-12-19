@@ -405,7 +405,7 @@ class Reconstruction(object):
             recon_param = np.array(
                 [dx, dy, dz, nx, ny, nz, nu, nv, du, dv, Source[0], Source[1], Source[2], Detector[0], Detector[1],
                  Detector[2], angle[0], 0.0, R, 0]).astype(np.float32)
-            recon_param_gpu = pycuda.gpuarray.zeros(20, np.float32)
+            # recon_param_gpu = pycuda.gpuarray.zeros(20, np.float32)
             # recon_param_gpu = drv.mem_alloc(recon_param.nbytes)
             recon_param_gpu = pycuda.gpuarray.to_gpu(recon_param.flatten().astype(np.float32))
             Q = self.proj * dtheta
