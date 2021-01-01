@@ -1,5 +1,7 @@
 # CTReconstruction
 
+# NOTE: This code is not for commercial or clinical use.
+
 ## Algorithms for CT reconstruction written in Python
 
 ### Added ###
@@ -13,5 +15,6 @@
 - Helical reconstruction algorithm
 - Iterative reconstruction algorithm
 - Ray-driven forward and backward projection
+
 
 #### References ####
