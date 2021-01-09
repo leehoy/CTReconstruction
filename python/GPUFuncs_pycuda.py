@@ -4,7 +4,8 @@ from pycuda.compiler import SourceModule
 
 
 def DefineGPUFuns():
-    mod = SourceModule("""
+    mod = SourceModule(
+        """
     #include <stdio.h>
     #include "cuda_runtime.h"
     #include "device_launch_parameters.h"
@@ -682,7 +683,7 @@ def DefineGPUFuns():
         }
     }
     
-    __device__ float f_angle(float x,float y){
+__device__ float f_angle(float x,float y){
     float angle;
     if(y!=0){
         angle=atan2f(x,y);
@@ -713,6 +714,7 @@ __device__ float fz(float x,float y,float z,float angle1,float angle2){
     new_pos=z*cos(angle2)+sqrtf(x*x+y*y)*sin(angle2);
     return new_pos;
 }
+
 
 __global__ void distance_backproj_arb(float* Dest, float* Src,float* x_plane,float* y_plane,float* z_plane,float* u_plane,float* v_plane,float* params){
     int x=blockDim.x*blockIdx.x+threadIdx.x;
@@ -1191,5 +1193,6 @@ __global__ void curved_distance_backproj_arb(float* Dest, float* Src,float* x_pl
     }
 }
     
-    """)
+    """
+    )
     return mod
